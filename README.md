@@ -49,7 +49,7 @@ _Installing Arduino IDE is a requirement only for Windows users. macOS and Linux
 1. Copy the `boards.local.txt` file into the Arduino Mbed Portenta directory, for instance:
 `/Users/aureleq/Library/Arduino15/packages/arduino/hardware/mbed_portenta/2.6.1`.
 1. Open the `firmware-arduino-portenta-h7.ino`, select the **Arduino Portenta H7 (M7 core)** board and the Flash Split **2 MB M7 + M4 in SDRAM**.
-1. Build and flash the application using the **Upload** button.
+1. Build and flash the application using the **Upload** button. :warning: **It can take up to an hour depending on your computer resources**
 
 ## Using your own exported `Arduino` library from
 
@@ -70,3 +70,15 @@ accordingly.
     ```
 
     Having the above issues? Then copy `20-arduino.rules` to `/etc/udev/rules.d/` and try again.
+    
+* #include "UsefulBuh.h" error?
+
+    ```
+    #include "UsefulBuf.h"
+          ^~~~~~~~~~~~~
+    compilation terminated.
+    exit status 1
+    Error compiling for board Arduino Portenta H7 (M7 core).
+    ```
+    
+    Add the boards.local.txt in your Arduino IDE application folder
