@@ -70,7 +70,7 @@ accordingly.
     ```
 
     Having the above issues? Then copy `20-arduino.rules` to `/etc/udev/rules.d/` and try again.
-    
+
 * #include "UsefulBuh.h" error?
 
     ```
@@ -80,5 +80,5 @@ accordingly.
     exit status 1
     Error compiling for board Arduino Portenta H7 (M7 core).
     ```
-    
+
     Add the boards.local.txt in your Arduino IDE application folder
