@@ -27,6 +27,7 @@
 #include "ei_microphone.h"
 #include "ei_camera.h"
 #include "ei_main.h"
+#include "jpeg/encode_as_jpg.h"
 
 #if defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_MICROPHONE
 void run_nn(bool debug)
@@ -205,6 +206,12 @@ void run_nn_continuous(bool debug)
 
 #elif defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA
 
+const size_t jpeg_buffer_size = 4096;
+uint8_t jpeg_buffer[jpeg_buffer_size];
+float framebuffer_f32[96*96];
+uint8_t framebuffer[96*96];
+char base64_buffer[8192];
+
 #define DWORD_ALIGN_PTR(a)   ((a & 0x3) ?(((uintptr_t)a + 0x4) & ~(uintptr_t)0x3) : a)
 
 void run_nn(bool debug) {
@@ -235,18 +242,7 @@ void run_nn(bool debug) {
         return;
     }
 
-    ei_printf("camera inited\n");
-
     while(stop_inferencing == false) {
-        ei_printf("Starting inferencing in 2 seconds...\n");
-
-        // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-        if (ei_sleep(2000) != EI_IMPULSE_OK) {
-            break;
-        }
-
-        ei_printf("1\n");
-
         ei::signal_t signal;
         signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
         signal.get_data = &ei_camera_cutout_get_data;
@@ -258,118 +254,42 @@ void run_nn(bool debug) {
             break;
         }
 
-        if (debug) {
-            ei_printf("Framebuffer: ");
-
-            size_t signal_chunk_size = 1024;
-
-            // loop through the signal
-            float *signal_buf = (float*)ei_malloc(signal_chunk_size * sizeof(float));
-            if (!signal_buf) {
-                ei_printf("ERR: Failed to allocate signal buffer\n");
-                return;
-            }
-
-            uint8_t *per_pixel_buffer = (uint8_t*)ei_malloc(513); // 171 x 3 pixels
-            if (!per_pixel_buffer) {
-                ei_free(signal_buf);
-                ei_printf("ERR: Failed to allocate per_pixel buffer\n");
-                return;
-            }
-
-            size_t per_pixel_buffer_ix = 0;
-
-            for (size_t ix = 0; ix < signal.total_length; ix += signal_chunk_size) {
-                size_t items_to_read = signal_chunk_size;
-                if (items_to_read > signal.total_length - ix) {
-                    items_to_read = signal.total_length - ix;
-                }
-
-                int r = signal.get_data(ix, items_to_read, signal_buf);
-                if (r != 0) {
-                    ei_printf("ERR: Failed to get data from signal (%d)\n", r);
-                    break;
-                }
-
-                for (size_t px = 0; px < items_to_read; px++) {
-                    uint32_t pixel = static_cast<uint32_t>(signal_buf[px]);
-
-                    // grab rgb
-                    uint8_t r = static_cast<float>(pixel >> 16 & 0xff);
-                    uint8_t g = static_cast<float>(pixel >> 8 & 0xff);
-                    uint8_t b = static_cast<float>(pixel & 0xff);
-
-                    // is monochrome anyway now, so just print 1 pixel at a time
-                    const bool print_rgb = false;
-
-                    if (print_rgb) {
-                        per_pixel_buffer[per_pixel_buffer_ix + 0] = r;
-                        per_pixel_buffer[per_pixel_buffer_ix + 1] = g;
-                        per_pixel_buffer[per_pixel_buffer_ix + 2] = b;
-                        per_pixel_buffer_ix += 3;
-                    }
-                    else {
-                        per_pixel_buffer[per_pixel_buffer_ix + 0] = r;
-                        per_pixel_buffer_ix++;
-                    }
-
-                    if (per_pixel_buffer_ix >= 513) {
-                        const size_t base64_output_size = 684;
-
-                        char *base64_buffer = (char*)ei_malloc(base64_output_size);
-                        if (!base64_buffer) {
-                            ei_printf("ERR: Cannot allocate base64 buffer of size %lu, out of memory\n", base64_output_size);
-                            ei_free(signal_buf);
-                            ei_free(per_pixel_buffer);
-                            return;
-                        }
-
-                        int r = base64_encode((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, base64_output_size);
-                        if (r < 0) {
-                            ei_printf("ERR: Failed to base64 encode (%d)\n", r);
-                            ei_free(signal_buf);
-                            ei_free(per_pixel_buffer);
-                            return;
-                        }
-
-                        ei_write_string(base64_buffer, r);
-                        per_pixel_buffer_ix = 0;
-                        ei_free(base64_buffer);
-                    }
-                    EiDevice.set_state(eiStateUploading);
-                }
-            }
-
-            const size_t new_base64_buffer_output_size = floor(per_pixel_buffer_ix / 3 * 4) + 4;
-            char *base64_buffer = (char*)ei_malloc(new_base64_buffer_output_size);
-            if (!base64_buffer) {
-                ei_printf("ERR: Cannot allocate base64 buffer of size %lu, out of memory\n", new_base64_buffer_output_size);
-                return;
-            }
-
-            int r = base64_encode((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, new_base64_buffer_output_size);
-            if (r < 0) {
-                ei_printf("ERR: Failed to base64 encode (%d)\n", r);
-                return;
-            }
-
-            ei_write_string(base64_buffer, r);
-            ei_printf("\r\n");
-
-            ei_free(signal_buf);
-            ei_free(per_pixel_buffer);
-            free(base64_buffer);
-        }
-
-        ei_printf("gonna call classify\n");
-
         // run the impulse: DSP, neural network and the Anomaly algorithm
         ei_impulse_result_t result = { 0 };
 
-        EI_IMPULSE_ERROR ei_error = run_classifier(&signal, &result, debug);
+        EI_IMPULSE_ERROR ei_error = run_classifier(&signal, &result, false);
         if (ei_error != EI_IMPULSE_OK) {
             ei_printf("Failed to run impulse (%d)\n", ei_error);
             break;
+        }
+
+        ei_printf("Begin output\n");
+
+        if (debug) {
+            int x = signal.get_data(0, 96 * 96, framebuffer_f32);
+            if (x != 0) {
+                printf("Failed to get framebuffer (%d)\n", x);
+                return;
+            }
+
+            for (size_t ix = 0; ix < 96 * 96; ix++) {
+                float v = framebuffer_f32[ix];
+                framebuffer[ix] = static_cast<uint32_t>(v) & 0xff;
+            }
+
+            size_t out_size;
+            x = encode_as_jpg(framebuffer, 96*96, 96, 96, jpeg_buffer, jpeg_buffer_size, &out_size);
+            if (x != 0) {
+                printf("Failed to encode as JPG (%d)\n", x);
+                return;
+            }
+
+            ei_printf("Framebuffer: ");
+
+            int base64_count = base64_encode((const char*)jpeg_buffer, out_size, base64_buffer, 8192);
+
+            ei_write_string(base64_buffer, base64_count);
+            ei_printf("\r\n");
         }
 
         // print the predictions
@@ -382,7 +302,7 @@ void run_nn(bool debug) {
             continue;
         }
 
-        ei_printf("%s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
     }
 #else
     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
@@ -393,6 +313,8 @@ void run_nn(bool debug) {
     ei_printf("    anomaly score: %.3f\n", result.anomaly);
 #endif
 #endif
+
+        ei_printf("End output\n");
 
         while (ei_get_serial_available() > 0) {
             if (ei_get_serial_byte() == 'b') {

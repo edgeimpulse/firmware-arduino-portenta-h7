@@ -432,9 +432,6 @@ __attribute__((unused)) static void fill_result_struct_from_cubes(ei_impulse_res
 
         auto cube = bbs.at(ix);
 
-        // this factor determines minimum size of object - should be configured in the studio maybe?
-        if (cube->width * cube->height <= 2) continue;
-
         result->bounding_boxes[ix].label = cube->label;
         result->bounding_boxes[ix].x = cube->x * out_width_factor;
         result->bounding_boxes[ix].y = cube->y * out_width_factor;

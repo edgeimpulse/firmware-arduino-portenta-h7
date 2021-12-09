@@ -96,6 +96,7 @@ if [ "$COMMAND" = "--build" ];
 then
     echo "Building $PROJECT"
     check_dependency
+    echo "$ARDUINO_CLI compile --fqbn  $BOARD $BUILD_PROPERTIES_FLAG build.extra_flags=\"$INCLUDE $FLAGS\" --output-dir ."
     $ARDUINO_CLI compile --fqbn  $BOARD $BUILD_PROPERTIES_FLAG build.extra_flags="$INCLUDE $FLAGS" --output-dir . &
     pid=$! # Process Id of the previous running command
     while kill -0 $pid 2>/dev/null
