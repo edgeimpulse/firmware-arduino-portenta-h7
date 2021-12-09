@@ -46,7 +46,7 @@
 #define EI_CLASSIFIER_PROJECT_ID                 1027
 #define EI_CLASSIFIER_PROJECT_OWNER              "Jan Jongboom"
 #define EI_CLASSIFIER_PROJECT_NAME               "Jan vs niet Jan object detection"
-#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     23
+#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     25
 #define EI_CLASSIFIER_NN_INPUT_FRAME_SIZE        9216
 #define EI_CLASSIFIER_RAW_SAMPLE_COUNT           9216
 #define EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME      1
