@@ -51,11 +51,6 @@ get_data_dir() {
     echo "$lib"
 }
 
-patch-mbed-2-5-2()
-{
-    echo "recipe.hooks.linking.prelink.1.pattern=\"{compiler.path}{compiler.c.elf.cmd}\" -E -P -x c {build.extra_ldflags} \"{build.variant.path}/{build.ldscript}\" -o {build.path}/{build.ldscript}" > ${ARDUINO_DATA_DIR}/packages/arduino/hardware/mbed_portenta/2.5.2/platform.local.txt
-}
-
 # CLI v0.14 updates the name of this to --build-property
 if ((CLI_MAJOR >= 0 && CLI_MINOR >= 14)); then
     BUILD_PROPERTIES_FLAG=--build-property
