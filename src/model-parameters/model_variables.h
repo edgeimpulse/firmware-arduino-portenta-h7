@@ -25,23 +25,14 @@
 #include <stdint.h>
 #include "model_metadata.h"
 
-const char* ei_classifier_inferencing_categories[] = { "helloworld", "noise", "unknown" };
+const char* ei_classifier_inferencing_categories[] = { "jan" };
 
 uint8_t ei_dsp_config_3_axes[] = { 0 };
 const uint32_t ei_dsp_config_3_axes_size = 1;
-ei_dsp_config_mfcc_t ei_dsp_config_3 = {
+ei_dsp_config_image_t ei_dsp_config_3 = {
     1,
     1,
-    13,
-    0.02f,
-    0.02f,
-    32,
-    256,
-    101,
-    300,
-    0,
-    0.98f,
-    1
+    "Grayscale"
 };
 
 #endif // _EI_CLASSIFIER_MODEL_METADATA_H_

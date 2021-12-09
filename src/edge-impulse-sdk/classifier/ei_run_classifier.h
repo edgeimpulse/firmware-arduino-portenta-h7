@@ -319,7 +319,179 @@ extern "C" EI_IMPULSE_ERROR run_classifier_continuous(signal_t *signal, ei_impul
     return ei_impulse_error;
 }
 
-#if EI_CLASSIFIER_OBJECT_DETECTION
+#if EI_CLASSIFIER_OBJECT_DETECTION_CONSTRAINED
+
+typedef struct cube {
+    size_t x;
+    size_t y;
+    size_t width;
+    size_t height;
+    float confidence;
+    const char *label;
+} ei_classifier_cube_t;
+
+__attribute__((unused)) static void handle_cube(std::vector<ei_classifier_cube_t*> *cubes, int x, int y, float vf, const char *label) {
+    if (vf < EI_CLASSIFIER_OBJECT_DETECTION_THRESHOLD) return;
+
+    bool has_overlapping = false;
+    int width = 1;
+    int height = 1;
+
+    for (auto c : *cubes) {
+        // not cube for same class? continue
+        if (strcmp(c->label, label) != 0) continue;
+
+        bool is_overlapping = !(c->x + c->width < x || c->y + c->height < y || c->x > x + width || c->y > y + height);
+        if (is_overlapping) {
+            has_overlapping = true;
+
+            if (x < c->x) {
+                c->x = x;
+                c->width += c->x - x;
+            }
+            if (y < c->y) {
+                c->y = y;
+                c->height += c->y - y;
+            }
+            if (x + width > c->x + c->width) {
+                c->width += (x + width) - (c->x + c->width);
+            }
+            if (y + height > c->y + c->height) {
+                c->height += (y + height) - (c->y + c->height);
+            }
+            if (vf > c->confidence) {
+                c->confidence = vf;
+            }
+            break;
+        }
+    }
+
+    if (!has_overlapping) {
+        ei_classifier_cube_t *cube = new ei_classifier_cube_t();
+        cube->x = x;
+        cube->y = y;
+        cube->width = 1;
+        cube->height = 1;
+        cube->confidence = vf;
+        cube->label = label;
+        cubes->push_back(cube);
+    }
+}
+
+__attribute__((unused)) static void fill_result_struct_from_cubes(ei_impulse_result_t *result, std::vector<ei_classifier_cube_t*> *cubes, int out_width_factor) {
+    std::vector<ei_classifier_cube_t*> bbs;
+    for (auto sc : *cubes) {
+        bool has_overlapping = false;
+
+        int x = sc->x;
+        int y = sc->y;
+        int width = sc->width;
+        int height = sc->height;
+        const char *label = sc->label;
+        float vf = sc->confidence;
+
+        for (auto c : bbs) {
+            // not cube for same class? continue
+            if (strcmp(c->label, label) != 0) continue;
+
+            bool is_overlapping = !(c->x + c->width < x || c->y + c->height < y || c->x > x + width || c->y > y + height);
+            if (is_overlapping) {
+                has_overlapping = true;
+
+                if (x < c->x) {
+                    c->x = x;
+                    c->width += c->x - x;
+                }
+                if (y < c->y) {
+                    c->y = y;
+                    c->height += c->y - y;
+                }
+                if (x + width > c->x + c->width) {
+                    c->width += (x + width) - (c->x + c->width);
+                }
+                if (y + height > c->y + c->height) {
+                    c->height += (y + height) - (c->y + c->height);
+                }
+                if (vf > c->confidence) {
+                    c->confidence = vf;
+                }
+                break;
+            }
+        }
+
+        if (!has_overlapping) {
+            bbs.push_back(sc);
+        }
+    }
+
+    for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
+        if (ix >= bbs.size()) {
+            result->bounding_boxes[ix].value = 0.0f;
+            continue;
+        }
+
+        auto cube = bbs.at(ix);
+
+        // this factor determines minimum size of object - should be configured in the studio maybe?
+        if (cube->width * cube->height <= 2) continue;
+
+        result->bounding_boxes[ix].label = cube->label;
+        result->bounding_boxes[ix].x = cube->x * out_width_factor;
+        result->bounding_boxes[ix].y = cube->y * out_width_factor;
+        result->bounding_boxes[ix].width = cube->width * out_width_factor;
+        result->bounding_boxes[ix].height = cube->height * out_width_factor;
+        result->bounding_boxes[ix].value = cube->confidence;
+    }
+
+    for (auto c : *cubes) {
+        delete c;
+    }
+}
+
+__attribute__((unused)) static void fill_result_struct_f32(ei_impulse_result_t *result, float *data, int out_width, int out_height) {
+    std::vector<ei_classifier_cube_t*> cubes;
+
+    int out_width_factor = EI_CLASSIFIER_INPUT_WIDTH / out_width;
+
+    for (size_t y = 0; y < out_width; y++) {
+        // ei_printf("    [ ");
+        for (size_t x = 0; x < out_height; x++) {
+            size_t loc = ((y * out_height) + x) * (EI_CLASSIFIER_LABEL_COUNT + 1);
+
+            for (size_t ix = 1; ix < EI_CLASSIFIER_LABEL_COUNT + 1; ix++) {
+                float vf = data[loc+ix];
+
+                handle_cube(&cubes, x, y, vf, ei_classifier_inferencing_categories[ix - 1]);
+            }
+        }
+    }
+
+    fill_result_struct_from_cubes(result, &cubes, out_width_factor);
+}
+
+__attribute__((unused)) static void fill_result_struct_i8(ei_impulse_result_t *result, int8_t *data, float zero_point, float scale, int out_width, int out_height) {
+    std::vector<ei_classifier_cube_t*> cubes;
+
+    int out_width_factor = EI_CLASSIFIER_INPUT_WIDTH / out_width;
+
+    for (size_t y = 0; y < out_width; y++) {
+        // ei_printf("    [ ");
+        for (size_t x = 0; x < out_height; x++) {
+            size_t loc = ((y * out_height) + x) * (EI_CLASSIFIER_LABEL_COUNT + 1);
+
+            for (size_t ix = 1; ix < EI_CLASSIFIER_LABEL_COUNT + 1; ix++) {
+                int8_t v = data[loc+ix];
+                float vf = static_cast<float>(v - zero_point) * scale;
+
+                handle_cube(&cubes, x, y, vf, ei_classifier_inferencing_categories[ix - 1]);
+            }
+        }
+    }
+
+    fill_result_struct_from_cubes(result, &cubes, out_width_factor);
+}
+
+#elif EI_CLASSIFIER_OBJECT_DETECTION
 
 /**
  * Fill the result structure from an unquantized output tensor
@@ -587,7 +759,18 @@ static EI_IMPULSE_ERROR inference_tflite_run(uint64_t ctx_start_ms,
     if (debug) {
         ei_printf("Predictions (time: %d ms.):\n", result->timing.classification);
     }
-#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+
+#if EI_CLASSIFIER_OBJECT_DETECTION_CONSTRAINED == 1
+    bool int8_output = output->type == TfLiteType::kTfLiteInt8;
+    if (int8_output) {
+        fill_result_struct_i8(result, output->data.int8, output->params.zero_point, output->params.scale,
+            (int)output->dims->data[1], (int)output->dims->data[2]);
+    }
+    else {
+        fill_result_struct_f32(result, output->data.f,
+            (int)output->dims->data[1], (int)output->dims->data[2]);
+    }
+#elif EI_CLASSIFIER_OBJECT_DETECTION == 1
     fill_result_struct_f32(result, tflite::post_process_boxes, tflite::post_process_scores, tflite::post_process_classes, debug);
     // fill_result_struct_f32(result, output->data.f, scores_tensor->data.f, labels_tensor->data.f, debug);
 #else
@@ -796,7 +979,15 @@ extern "C" EI_IMPULSE_ERROR run_inference(
             ei_printf("Predictions (time: %d ms.):\n", result->timing.classification);
         }
 
-#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+#if EI_CLASSIFIER_OBJECT_DETECTION_CONSTRAINED == 1
+    #if EI_CLASSIFIER_TFLITE_OUTPUT_QUANTIZED == 1
+        fill_result_struct_i8(result, out_data, EI_CLASSIFIER_TFLITE_OUTPUT_ZEROPOINT, EI_CLASSIFIER_TFLITE_OUTPUT_SCALE,
+            EI_CLASSIFIER_INPUT_WIDTH / 8, EI_CLASSIFIER_INPUT_HEIGHT / 8);
+    #else
+        fill_result_struct_f32(result, out_data,
+            EI_CLASSIFIER_INPUT_WIDTH / 8, EI_CLASSIFIER_INPUT_HEIGHT / 8);
+    #endif
+#elif EI_CLASSIFIER_OBJECT_DETECTION == 1
         float *scores_tensor = interpreter->typed_output_tensor<float>(EI_CLASSIFIER_TFLITE_OUTPUT_SCORE_TENSOR);
         float *label_tensor = interpreter->typed_output_tensor<float>(EI_CLASSIFIER_TFLITE_OUTPUT_LABELS_TENSOR);
         if (!scores_tensor) {

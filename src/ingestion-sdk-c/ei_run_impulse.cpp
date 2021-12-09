@@ -99,12 +99,24 @@ void run_nn(bool debug)
         // print the predictions
         ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                   result.timing.dsp, result.timing.classification, result.timing.anomaly);
-        for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-            ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                      result.classification[ix].value);
+
+#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
+        auto bb = result.bounding_boxes[ix];
+        if (bb.value == 0) {
+            continue;
         }
+
+        ei_printf("%s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+    }
+#else
+    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+        ei_printf("    %s: %.5f\n", result.classification[ix].label,
+                                    result.classification[ix].value);
+    }
 #if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %.3f\n", result.anomaly);
+    ei_printf("    anomaly score: %.3f\n", result.anomaly);
+#endif
 #endif
 
         while (ei_get_serial_available() > 0) {
@@ -158,13 +170,24 @@ void run_nn_continuous(bool debug)
             // print the predictions
             ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                       result.timing.dsp, result.timing.classification, result.timing.anomaly);
+        #if EI_CLASSIFIER_OBJECT_DETECTION == 1
+            for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
+                auto bb = result.bounding_boxes[ix];
+                if (bb.value == 0) {
+                    continue;
+                }
+
+                ei_printf("%s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+            }
+        #else
             for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
                 ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                          result.classification[ix].value);
+                                            result.classification[ix].value);
             }
-#if EI_CLASSIFIER_HAS_ANOMALY == 1
+        #if EI_CLASSIFIER_HAS_ANOMALY == 1
             ei_printf("    anomaly score: %.3f\n", result.anomaly);
-#endif
+        #endif
+        #endif
 
             print_results = 0;
         }
@@ -212,6 +235,8 @@ void run_nn(bool debug) {
         return;
     }
 
+    ei_printf("camera inited\n");
+
     while(stop_inferencing == false) {
         ei_printf("Starting inferencing in 2 seconds...\n");
 
@@ -219,6 +244,8 @@ void run_nn(bool debug) {
         if (ei_sleep(2000) != EI_IMPULSE_OK) {
             break;
         }
+
+        ei_printf("1\n");
 
         ei::signal_t signal;
         signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
@@ -334,6 +361,8 @@ void run_nn(bool debug) {
             free(base64_buffer);
         }
 
+        ei_printf("gonna call classify\n");
+
         // run the impulse: DSP, neural network and the Anomaly algorithm
         ei_impulse_result_t result = { 0 };
 
@@ -346,11 +375,23 @@ void run_nn(bool debug) {
         // print the predictions
         ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                   result.timing.dsp, result.timing.classification, result.timing.anomaly);
-        for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-            ei_printf("    %s: \t%f\r\n", result.classification[ix].label, result.classification[ix].value);
+#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
+        auto bb = result.bounding_boxes[ix];
+        if (bb.value == 0) {
+            continue;
         }
+
+        ei_printf("%s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+    }
+#else
+    for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+        ei_printf("    %s: %.5f\n", result.classification[ix].label,
+                                    result.classification[ix].value);
+    }
 #if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %f\r\n", result.anomaly);
+    ei_printf("    anomaly score: %.3f\n", result.anomaly);
+#endif
 #endif
 
         while (ei_get_serial_available() > 0) {
