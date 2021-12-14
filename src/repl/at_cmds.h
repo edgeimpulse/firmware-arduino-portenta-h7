@@ -26,11 +26,12 @@
 #include "at_cmd_interface.h"
 #include "at_base64.h"
 #include "ei_config.h"
+#include "model-parameters/model_metadata.h"
 
 #include "ei_device_portenta.h"
 
 
-#define EDGE_IMPULSE_AT_COMMAND_VERSION        "1.6.0"
+#define EDGE_IMPULSE_AT_COMMAND_VERSION        "1.6.1"
 
 static void at_error_not_implemented() {
     ei_printf("Command not implemented\r\n");
@@ -66,6 +67,10 @@ static void at_device_info() {
         ei_printf("Data Transfer Baudrate: %s\r\n", baudrate.str);
     } else {
         ei_printf("Data Transfer Baudrate: UNKNOWN\r\n");
+    }
+    ei_printf("Inference sensor:       %d\r\n", EI_CLASSIFIER_SENSOR);
+    if (EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA) {
+        ei_printf("Object detection:       %d\r\n", EI_CLASSIFIER_OBJECT_DETECTION);
     }
 }
 

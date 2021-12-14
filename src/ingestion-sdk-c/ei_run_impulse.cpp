@@ -214,8 +214,7 @@ char base64_buffer[8192];
 
 #define DWORD_ALIGN_PTR(a)   ((a & 0x3) ?(((uintptr_t)a + 0x4) & ~(uintptr_t)0x3) : a)
 
-void run_nn(bool debug) {
-
+void run_nn(bool debug, int delay_ms) {
     // static uint8_t image_buffer[EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT];
     bool stop_inferencing = false;
 
@@ -243,6 +242,15 @@ void run_nn(bool debug) {
     }
 
     while(stop_inferencing == false) {
+        if (delay != 0) {
+            ei_printf("Starting inferencing in %d seconds...\n", delay_ms / 1000);
+
+            // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
+            if (ei_sleep(delay_ms) != EI_IMPULSE_OK) {
+                break;
+            }
+        }
+
         ei::signal_t signal;
         signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
         signal.get_data = &ei_camera_cutout_get_data;
@@ -337,6 +345,8 @@ void run_nn_continuous_normal()
 {
 #if defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_MICROPHONE
     run_nn_continuous(false);
+#elif defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA
+    run_nn(false, 0);
 #else
     ei_printf("Error no continuous classification available for current model\r\n");
 #endif
@@ -344,10 +354,18 @@ void run_nn_continuous_normal()
 
 void run_nn_normal(void)
 {
+#if defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA
+    run_nn(false, 2000);
+#else
     run_nn(false);
+#endif
 }
 
 void run_nn_debug(void)
 {
+#if defined(EI_CLASSIFIER_SENSOR) && EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA
+    run_nn(true, 0);
+#else
     run_nn(true);
+#endif
 }
