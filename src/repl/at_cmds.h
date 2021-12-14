@@ -68,10 +68,10 @@ static void at_device_info() {
     } else {
         ei_printf("Data Transfer Baudrate: UNKNOWN\r\n");
     }
-    ei_printf("Inference sensor:       %d\r\n", EI_CLASSIFIER_SENSOR);
-    if (EI_CLASSIFIER_SENSOR == EI_CLASSIFIER_SENSOR_CAMERA) {
-        ei_printf("Object detection:       %d\r\n", EI_CLASSIFIER_OBJECT_DETECTION);
-    }
+}
+
+static void at_get_inference() {
+    ei_printf("Sensor:           %d\r\n", EI_CLASSIFIER_SENSOR);
 }
 
 static void at_get_wifi() {
@@ -317,6 +317,9 @@ static void at_list_config() {
     ei_printf("\n");
     ei_printf("===== Snapshot ======\n");
     at_get_snapshot();
+    ei_printf("\n");
+    ei_printf("===== Inference ======\n");
+    at_get_inference();
     ei_printf("\n");
     ei_printf("===== WIFI =====\n");
     at_get_wifi();
