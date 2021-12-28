@@ -306,9 +306,10 @@ void run_nn(bool debug, int delay_ms) {
         ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                   result.timing.dsp, result.timing.classification, result.timing.anomaly);
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-    bool bb_found = result.bounding_boxes[ix].value > 0;
+    bool bb_found = 0;
     for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
         auto bb = result.bounding_boxes[ix];
+        bb_found |= (bb_found = result.bounding_boxes[ix].value > 0) ? 1 : 0;
         if (bb.value == 0) {
             continue;
         }
