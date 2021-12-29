@@ -278,7 +278,7 @@ void run_nn(bool debug, int delay_ms) {
         if (debug) {
             int x = signal.get_data(0, 96 * 96, framebuffer_f32);
             if (x != 0) {
-                printf("Failed to get framebuffer (%d)\n", x);
+                ei_printf("Failed to get framebuffer (%d)\n", x);
                 return;
             }
 
@@ -290,8 +290,8 @@ void run_nn(bool debug, int delay_ms) {
             size_t out_size;
             x = encode_as_jpg(framebuffer, 96*96, 96, 96, jpeg_buffer, jpeg_buffer_size, &out_size);
             if (x != 0) {
-                printf("Failed to encode as JPG (%d)\n", x);
-                return;
+                ei_printf("Failed to encode as JPG (%d)\n", x);
+                continue;
             }
 
             ei_printf("Framebuffer: ");
