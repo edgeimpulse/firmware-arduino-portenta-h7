@@ -18,3 +18,6 @@
 #
 *.bin
 *.hex
+
+# Misc
+.DS_Store
