@@ -86,18 +86,17 @@ FLAGS+=" -DEI_SENSOR_AQ_STREAM=FILE"
 FLAGS+=" -DEIDSP_QUANTIZE_FILTERBANK=0"
 FLAGS+=" -DEI_CLASSIFIER_SLICES_PER_MODEL_WINDOW=3"
 FLAGS+=" -DEI_DSP_IMAGE_BUFFER_STATIC_SIZE=128"
-FLAGS+=" -DEI_CLASSIFIER_ALLOCATION_STATIC=1"
 #FLAGS+=" -mfpu=fpv4-sp-d16"
 # frame buffer allocation options: {static: default, heap or SDRAM}
 FLAGS+=" -DEI_CAMERA_FRAME_BUFFER_SDRAM"
 #FLAGS+=" -DEI_CAMERA_FRAME_BUFFER_HEAP"
+FLAGS+=" -DEI_CLASSIFIER_ALLOCATION_STATIC" #Mbed OS has unreliable alloc behaviour
 FLAGS+=" -w"
 
 if [ "$COMMAND" = "--build" ];
 then
     echo "Building $PROJECT"
     check_dependency
-    echo "$ARDUINO_CLI compile --fqbn  $BOARD $BUILD_PROPERTIES_FLAG build.extra_flags=\"$INCLUDE $FLAGS\" --output-dir ."
     $ARDUINO_CLI compile --fqbn  $BOARD $BUILD_PROPERTIES_FLAG build.extra_flags="$INCLUDE $FLAGS" --output-dir . &
     pid=$! # Process Id of the previous running command
     while kill -0 $pid 2>/dev/null
@@ -114,7 +113,6 @@ then
     fi
 elif [ "$COMMAND" = "--flash" ];
 then
-    echo "    $ARDUINO_CLI upload -p $($ARDUINO_CLI board list | grep Arduino | cut -d ' ' -f1) --fqbn $BOARD --input-dir ."
     $ARDUINO_CLI upload -p $($ARDUINO_CLI board list | grep Arduino | cut -d ' ' -f1) --fqbn $BOARD --input-dir .
 elif [ "$COMMAND" = "--all" ];
 then

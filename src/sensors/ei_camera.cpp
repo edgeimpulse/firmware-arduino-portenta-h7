@@ -38,8 +38,8 @@ static bool is_ll_initialised = false;
 ** @brief used to store the raw frame
 */
 #if defined(EI_CAMERA_FRAME_BUFFER_SDRAM) || defined(EI_CAMERA_FRAME_BUFFER_HEAP)
-static uint8_t *ei_camera_frame_mem;
-static uint8_t *ei_camera_frame_buffer; // 32-byte aligned
+static uint8_t *ei_camera_frame_mem = NULL;
+static uint8_t *ei_camera_frame_buffer = NULL; // 32-byte aligned
 #else
 static uint8_t ei_camera_frame_buffer[EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS] __attribute__((aligned(32)));
 #endif
@@ -138,12 +138,14 @@ bool ei_camera_init(void) {
         }
 
     #ifdef EI_CAMERA_FRAME_BUFFER_SDRAM
-        ei_camera_frame_mem = (uint8_t *) SDRAM.malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS + 32 /*alignment*/);
         if(ei_camera_frame_mem == NULL) {
-            ei_printf("failed to create ei_camera_frame_mem\r\n");
-            return false;
+            ei_camera_frame_mem = (uint8_t *) SDRAM.malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS + 32 /*alignment*/);
+            if(ei_camera_frame_mem == NULL) {
+                ei_printf("failed to create ei_camera_frame_mem\r\n");
+                return false;
+            }
+            ei_camera_frame_buffer = (uint8_t *)ALIGN_PTR((uintptr_t)ei_camera_frame_mem, 32);
         }
-        ei_camera_frame_buffer = (uint8_t *)ALIGN_PTR((uintptr_t)ei_camera_frame_mem, 32);
     #endif
 
         is_ll_initialised = true;
