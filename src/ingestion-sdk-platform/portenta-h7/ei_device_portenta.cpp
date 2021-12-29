@@ -408,7 +408,9 @@ bool ei_user_invoke_stop(void) {
  * @param[in]  length  The length
  */
 void ei_write_string(char *data, int length) {
-    Serial.write(data, length);
+    while (length--) {
+        Serial.write(*(data++));
+    }
 }
 
 /**
