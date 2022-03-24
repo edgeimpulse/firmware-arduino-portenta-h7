@@ -24,7 +24,7 @@ The Edge Impulse firmware depends on some libraries and the Mbed core for Arduin
 _Installing Arduino IDE is a requirement only for Windows users. macOS and Linux users can use either the Arduino CLI or IDE to build the application._
 
 1. Download and install the [Arduino IDE](https://www.arduino.cc/en/software) for your Operating System.
-1. In Tools -> Board -> Boards Manager, search for `portenta` and install the **Arduino Mbed OS Portenta Boards v2.6.1**.
+1. In Tools -> Board -> Boards Manager, search for `portenta` and install the **Arduino Mbed OS Portenta Boards v2.8.0**.
 
 ## Building the application
 
@@ -44,10 +44,10 @@ _Installing Arduino IDE is a requirement only for Windows users. macOS and Linux
 
 ### Arduino IDE
 
-1. In Tools -> Board -> Boards Manager, search for `portenta` and install the **Arduino Mbed OS Portenta Boards v2.6.1**.
+1. In Tools -> Board -> Boards Manager, search for `portenta` and install the **Arduino Mbed OS Portenta Boards v2.8.0**.
 1. In Arduino Menu -> Preferences, check the location of the **preferences.txt** file (ie: /Users/aureleq/Library/Arduino15/).
 1. Copy the `boards.local.txt` file into the Arduino Mbed Portenta directory, for instance:
-`/Users/aureleq/Library/Arduino15/packages/arduino/hardware/mbed_portenta/2.6.1`.
+`/Users/aureleq/Library/Arduino15/packages/arduino/hardware/mbed_portenta/2.8.0`.
 1. Open the `firmware-arduino-portenta-h7.ino`, select the **Arduino Portenta H7 (M7 core)** board and the Flash Split **2 MB M7 + M4 in SDRAM**.
 1. Build and flash the application using the **Upload** button. :warning: **It can take up to an hour depending on your computer resources**
 

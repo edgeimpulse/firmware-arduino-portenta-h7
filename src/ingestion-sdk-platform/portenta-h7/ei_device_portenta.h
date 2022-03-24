@@ -90,6 +90,7 @@ public:
 
 /* Function prototypes ----------------------------------------------------- */
 void ei_write_string(char *data, int length);
+void ei_write_char(char data);
 bool ei_user_invoke_stop(void);
 
 /* Reference to object for external usage ---------------------------------- */

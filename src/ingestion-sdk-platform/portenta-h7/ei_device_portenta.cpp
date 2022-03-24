@@ -236,9 +236,9 @@ bool EiDevicePortenta::get_snapshot_list(const ei_device_snapshot_resolutions_t 
                                          const char **color_depth)
 {
     snapshot_resolutions[0].width = 320;
-    snapshot_resolutions[0].height = 320;
-    snapshot_resolutions[1].width = 320;
-    snapshot_resolutions[1].height = 240;
+    snapshot_resolutions[0].height = 240;
+    snapshot_resolutions[1].width = 160;
+    snapshot_resolutions[1].height = 120;
     snapshot_resolutions[2].width = 128;
     snapshot_resolutions[2].height = 96;
 
@@ -372,25 +372,6 @@ c_callback_get_data_output_baudrate EiDevicePortenta::get_data_output_baudrate_f
     return &get_data_output_baudrate_c;
 }
 
-
-/**
- * @brief      Printf function uses vsnprintf and output using Arduino Serial
- *
- * @param[in]  format     Variable argument list
- */
-void ei_printf(const char *format, ...) {
-    char print_buf[1024] = { 0 };
-
-    va_list args;
-    va_start(args, format);
-    int r = vsnprintf(print_buf, sizeof(print_buf), format, args);
-    va_end(args);
-
-    if (r > 0) {
-        Serial.write(print_buf);
-    }
-}
-
 /**
  * @brief      Call this function periocally during inference to
  *             detect a user stop command
@@ -408,7 +389,18 @@ bool ei_user_invoke_stop(void) {
  * @param[in]  length  The length
  */
 void ei_write_string(char *data, int length) {
-    Serial.write(data, length);
+    while (length--) {
+        Serial.write(*(data++));
+    }
+}
+
+/**
+ * @brief      Write serial data to Serial output
+ *
+ * @param      c    The character
+ */
+void ei_write_char(char c) {
+    Serial.write(c);
 }
 
 /**

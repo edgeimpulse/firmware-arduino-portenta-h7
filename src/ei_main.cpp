@@ -114,7 +114,7 @@ void ei_main() {
 
     ei_at_register_generic_cmds();
     ei_at_cmd_register("RUNIMPULSE", "Run the impulse", run_nn_normal);
-    ei_at_cmd_register("RUNIMPULSEDEBUG", "Run the impulse", run_nn_debug);
+    ei_at_cmd_register("RUNIMPULSEDEBUG=", "Run the impulse with extra (base64) debug output (USEMAXRATE?(y/n))", run_nn_debug);
     ei_at_cmd_register("RUNIMPULSECONT", "Run the impulse continuously", run_nn_continuous_normal);
     ei_at_cmd_register("FILLMEMORY", "Fill memory", fill_memory);
 
@@ -122,10 +122,4 @@ void ei_main() {
 
     repl.start_repl();
     main_application_queue.dispatch_forever();
-
-    // while(1) {
-    //     delay(500);
-    //     ei_printf("portenta loop %lu\r\n", (uint32_t)ei_read_timer_ms());
-
-    // }
 }

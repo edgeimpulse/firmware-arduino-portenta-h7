@@ -23,23 +23,33 @@
 #include "ei_camera.h"
 #include "ei_main.h"
 #include "edge-impulse-sdk/dsp/image/image.hpp"
+#include "firmware-sdk/at_base64_lib.h"
 #ifdef EI_CAMERA_FRAME_BUFFER_SDRAM
 #include "SDRAM.h"
+#endif
+
+// for debugging the camera
+#ifdef DEBUG_ARDUINO_CAMERA
+#include "Arduino.h"
+#include <USB/PluggableUSBSerial.h> // for _SerialUSB
 #endif
 
 #define ALIGN_PTR(p,a)   ((p & (a-1)) ?(((uintptr_t)p + a) & ~(uintptr_t)(a-1)) : p)
 #define DWORD_ALIGN_PTR(p)  ALIGN_PTR(p,4)
 
-static CameraClass cam;
+HM01B0 himax;
+static Camera cam(himax);
 static bool is_initialised = false;
 static bool is_ll_initialised = false;
 
 /*
 ** @brief used to store the raw frame
 */
+
+FrameBuffer fb;
 #if defined(EI_CAMERA_FRAME_BUFFER_SDRAM) || defined(EI_CAMERA_FRAME_BUFFER_HEAP)
-static uint8_t *ei_camera_frame_mem;
-static uint8_t *ei_camera_frame_buffer; // 32-byte aligned
+static uint8_t *ei_camera_frame_mem = NULL;
+static uint8_t *ei_camera_frame_buffer = NULL; // 32-byte aligned
 #else
 static uint8_t ei_camera_frame_buffer[EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS] __attribute__((aligned(32)));
 #endif
@@ -131,19 +141,24 @@ bool ei_camera_init(void) {
     if (is_initialised) return true;
 
     if (is_ll_initialised == false) {
-        int r = cam.begin(CAMERA_R320x320, 30);
-        if (r != 0) {
+
+        if (!cam.begin(CAMERA_R320x240, CAMERA_GRAYSCALE, 30)) {
             ei_printf("ERR: Failed to initialise camera\r\n");
             return false;
         }
+#ifdef DEBUG_ARDUINO_CAMERA
+        cam.debug(_SerialUSB);
+#endif
 
     #ifdef EI_CAMERA_FRAME_BUFFER_SDRAM
-        ei_camera_frame_mem = (uint8_t *) SDRAM.malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS + 32 /*alignment*/);
         if(ei_camera_frame_mem == NULL) {
-            ei_printf("failed to create ei_camera_frame_mem\r\n");
-            return false;
+            ei_camera_frame_mem = (uint8_t *) SDRAM.malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS + 32 /*alignment*/);
+            if(ei_camera_frame_mem == NULL) {
+                ei_printf("failed to create ei_camera_frame_mem\r\n");
+                return false;
+            }
+            ei_camera_frame_buffer = (uint8_t *)ALIGN_PTR((uintptr_t)ei_camera_frame_mem, 32);
         }
-        ei_camera_frame_buffer = (uint8_t *)ALIGN_PTR((uintptr_t)ei_camera_frame_mem, 32);
     #endif
 
         is_ll_initialised = true;
@@ -159,6 +174,7 @@ bool ei_camera_init(void) {
     ei_camera_frame_buffer = (uint8_t *)ALIGN_PTR((uintptr_t)ei_camera_frame_mem, 32);
 #endif
 
+    fb.setBuffer(ei_camera_frame_buffer);
     is_initialised = true;
 
     return true;
@@ -200,7 +216,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 
     EiDevice.set_state(eiStateSampling);
 
-    int snapshot_response = cam.grab(ei_camera_frame_buffer);
+    int snapshot_response = cam.grabFrame(fb, 3000);
     if (snapshot_response != 0) {
         ei_printf("ERR: Failed to get snapshot (%d)\r\n", snapshot_response);
         return false;
@@ -227,7 +243,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 
     if (do_resize) {
 
-        // if only resizing then and out_buf provided then use itinstead.
+        // if only resizing then and out_buf provided then use it instead.
         if (out_buf && !do_crop) ei_camera_capture_out = out_buf;
 
         //ei_printf("resize cols: %d, rows: %d\r\n", resize_col_sz,resize_row_sz);
@@ -434,7 +450,7 @@ static bool take_snapshot(size_t width, size_t height, bool print_oks)
                     return false;
                 }
 
-                int r = base64_encode((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, base64_output_size);
+                int r = base64_encode_buffer((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, base64_output_size);
                 if (r < 0) {
                     ei_printf("ERR: Failed to base64 encode (%d)\r\n", r);
                     ei_free(signal_buf);
@@ -459,7 +475,7 @@ static bool take_snapshot(size_t width, size_t height, bool print_oks)
         return false;
     }
 
-    int r = base64_encode((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, new_base64_buffer_output_size);
+    int r = base64_encode_buffer((const char*)per_pixel_buffer, per_pixel_buffer_ix, base64_buffer, new_base64_buffer_output_size);
     if (r < 0) {
         ei_printf("ERR: Failed to base64 encode (%d)\r\n", r);
         ei_free(signal_buf);

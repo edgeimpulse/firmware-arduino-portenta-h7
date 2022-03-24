@@ -1,8 +1,22 @@
 #!/bin/bash
 set -e
 
+################################ Project ######################################
+
 PROJECT=firmware-arduino-portenta-h7
-BOARD=arduino:mbed_portenta:envie_m7:split=100_0
+
+# used for grepping
+ARDUINO_CORE="arduino:mbed_portenta"
+ARDUINO_CORE_VERSION="2.8.0"
+
+BOARD="${ARDUINO_CORE}":envie_m7:split=100_0
+
+# declare associative array pre bash 4 style
+ARDUINO_LIBS=(
+#"MKRWAN=1.0.13"   # MKRWAN library
+)
+###############################################################################
+
 COMMAND=$1
 if [ -z "$ARDUINO_CLI" ]; then
     ARDUINO_CLI=$(which arduino-cli || true)
@@ -14,6 +28,62 @@ EXPECTED_CLI_MINOR=18
 CLI_MAJOR=$($ARDUINO_CLI version | cut -d. -f1 | rev | cut -d ' '  -f1)
 CLI_MINOR=$($ARDUINO_CLI version | cut -d. -f2)
 CLI_REV=$($ARDUINO_CLI version | cut -d. -f3 | cut -d ' '  -f1)
+
+################################ Helper Funcs #################################
+
+# parses Arduino CLI's (core list and lib list) output and returns the installed version.
+# Expected format (spaces can vary):
+#    <package/core>   <installed version>  <latest version>  <other>
+#
+parse_installed() {
+    echo "${1}" | awk -F " " '{print $2}' || true
+}
+
+# finds a Arduino core installed and returns the version
+# otherwise it returns empty string
+#
+find_arduino_core() {
+    core=$1
+    version=$2
+    result=""
+    # space intentional
+    line="$($ARDUINO_CLI core list | grep "${core} " || true)"
+    if [ -n "$line" ]; then
+        installed="$(parse_installed "${line}")"
+        if [ "$version" = "$installed" ]; then
+           result="$installed"
+        fi
+    fi
+    echo $result
+}
+
+# finds a Arduino library installed and returns the version
+# otherwise it returns empty string
+#
+find_arduino_lib() {
+    lib=$1
+    version=$2
+    result=""
+    # space intentional
+    line="$($ARDUINO_CLI lib list | grep "${lib} " || true)"
+    if [ -n "$line" ]; then
+        installed="$(parse_installed "${line}")"
+        if [ "$version" = "$installed" ]; then
+           result="$installed"
+        fi
+    fi
+    echo $result
+}
+
+array_get_key() {
+    echo "${1%%=*}"
+}
+
+array_get_value() {
+    echo "${1#*=}"
+}
+
+############################# Installing Deps #################################
 
 check_dependency()
 {
@@ -33,35 +103,59 @@ check_dependency()
         echo "You're using an untested version of Arduino CLI, this might cause issues (found: $CLI_MAJOR.$CLI_MINOR.$CLI_REV, expected: $EXPECTED_CLI_MAJOR.$EXPECTED_CLI_MINOR.x)"
     fi
 
-    echo "Installing dependencies..."
-    $ARDUINO_CLI core update-index
+    echo ""
+    echo "Checking Core dependencies..."
+    echo ""
 
-    echo "Installing Arduino Mbed core..."
-    $ARDUINO_CLI core install arduino:mbed_portenta@2.6.1
-    echo "Installing Arduino Mbed core OK"
+    has_arduino_core="$(find_arduino_core "${ARDUINO_CORE}" "${ARDUINO_CORE_VERSION}")"
+    if [ -z "$has_arduino_core" ]; then
+        echo -e "${ARDUINO_CORE}@${ARDUINO_CORE_VERSION}\tNot Found!"
+        echo -e "\tInstalling ${ARDUINO_CORE}@${ARDUINO_CORE_VERSION}..."
+        $ARDUINO_CLI core update-index
+        $ARDUINO_CLI core install "${ARDUINO_CORE}@${ARDUINO_CORE_VERSION}"
+        echo -e "\tInstalling ${ARDUINO_CORE}@${ARDUINO_CORE_VERSION} OK"
+    else
+        echo -e "${ARDUINO_CORE}@${ARDUINO_CORE_VERSION}\tFound!"
+    fi
 
-    #echo "Installing MKRWAN library..."
-    #$ARDUINO_CLI lib install MKRWAN@1.0.13  # MKRWAN library
-    #echo "Installing MKRWAN library OK"
+    echo ""
+    echo "Checking Core dependencies OK"
+    echo ""
+    echo "Checking Library dependencies..."
+    echo ""
+
+    lib_update=""
+    for lib in ${ARDUINO_LIBS[@]}; do
+        key=$(array_get_key "${lib}")
+        value=$(array_get_value "$lib")
+        has_arduino_lib="$(find_arduino_lib "${key}" "${value}")"
+        if [ -n "$has_arduino_lib" ]; then
+            echo -e "${key}@${value}\tFound!"
+        else
+            echo -e "${key}@${value}\tNot Found!"
+            echo -e "\tInstalling ${key}@${value} library..."
+
+        if [ -z  "$lib_update" ]; then
+            $ARDUINO_CLI lib update-index
+            lib_update="once"
+        fi
+            $ARDUINO_CLI lib install "${key}"@"${value}"
+            echo -e "\tInstalling ${key}@${value} library OK"
+        fi
+    done
+
+    echo ""
+    echo "Checking Library dependencies OK"
+    echo ""
 }
 
-get_data_dir() {
-    local OUTPUT=$($ARDUINO_CLI config dump | grep 'data: ')
-    local lib="${OUTPUT:8}"
-    echo "$lib"
-}
+############################### Build Deps #####################################
 
 # CLI v0.14 updates the name of this to --build-property
 if ((CLI_MAJOR >= 0 && CLI_MINOR >= 14)); then
     BUILD_PROPERTIES_FLAG=--build-property
 else
     BUILD_PROPERTIES_FLAG=--build-properties
-fi
-
-ARDUINO_DATA_DIR="$(get_data_dir)"
-if [ -z "$ARDUINO_DATA_DIR" ]; then
-    echo "Arduino data directory not found"
-    exit 1
 fi
 
 INCLUDE="-I./src"
@@ -86,10 +180,12 @@ FLAGS+=" -DEI_SENSOR_AQ_STREAM=FILE"
 FLAGS+=" -DEIDSP_QUANTIZE_FILTERBANK=0"
 FLAGS+=" -DEI_CLASSIFIER_SLICES_PER_MODEL_WINDOW=3"
 FLAGS+=" -DEI_DSP_IMAGE_BUFFER_STATIC_SIZE=128"
-#FLAGS+=" -mfpu=fpv4-sp-d16"
-# frame buffer allocation options: {static: default, heap or SDRAM}
+
+# frame buffer allocation options: {static (default), heap or SDRAM}
 FLAGS+=" -DEI_CAMERA_FRAME_BUFFER_SDRAM"
 #FLAGS+=" -DEI_CAMERA_FRAME_BUFFER_HEAP"
+
+#FLAGS+=" -DEI_CLASSIFIER_ALLOCATION_STATIC"
 FLAGS+=" -w"
 
 if [ "$COMMAND" = "--build" ];

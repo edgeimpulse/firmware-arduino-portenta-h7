@@ -28,12 +28,14 @@
 
 */
 
+/* Include ----------------------------------------------------------------- */
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <math.h>
 
-int base64_encode(const char *input, size_t input_size, char *output, size_t output_size);
+/* Function prototypes ----------------------------------------------------- */
+void base64_encode(const char *input, size_t input_size, void (*putc_f)(char));
+int base64_encode_buffer(const char *input, size_t input_size, char *output, size_t output_size);
 
 #endif

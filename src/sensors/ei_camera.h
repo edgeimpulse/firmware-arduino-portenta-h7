@@ -29,14 +29,14 @@
 #include <math.h>
 #include "mbed.h" // must be included before camera.h
 #include "camera.h"
+#include "himax.h"
 #include "ingestion-sdk-platform/portenta-h7/ei_device_portenta.h"
 #include "edge-impulse-sdk/porting/ei_classifier_porting.h"
-#include "repl/at_base64.h"
 #include "edge-impulse-sdk/dsp/numpy_types.h"
 
 /* Constants --------------------------------------------------------------- */
 #define EI_CAMERA_RAW_FRAME_BUFFER_COLS           320
-#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           320
+#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS           240
 
 /* Public function prototypes ---------------------------------------------- */
 extern bool ei_camera_init(void);
