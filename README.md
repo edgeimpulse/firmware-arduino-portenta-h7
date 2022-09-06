@@ -97,12 +97,12 @@ Failed to allocate TFLite arena (error code 1)
 Failed to run impulse (-6)
 ```
 
-You get the above error when there's not enough (contiguous) memory to allocate TFLite arena. This can be caused by different reasons. 
+You get the above error when there's not enough (contiguous) memory to allocate TFLite arena. This can be caused by different reasons
 
 1. Heap fragmentation
 2. Not enough RAM/heap.
 
-In the case of (1) you may want to allocate the tensor arena statically by adding the `FLAGS+=" -DEI_CLASSIFIER_ALLOCATION_STATIC"`in `arduino-build.sh`. If the problem still persists, then it may be that there's not enough RAM/heap for your model and this application. Currently the heap is placed in a `512`k RAM segment.
+In the case of (1) you may want to allocate the tensor arena statically by defining ` "-DEI_CLASSIFIER_ALLOCATION_STATIC"` in `arduino-build.sh` or `boards.local.txt` . If the problem still persists, then it may be that there's not enough RAM/heap for your model and this application. Currently the heap is placed in a `512`k RAM segment.
 
 * Failed to encode frame as JPEG (4)
 

@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include "model_metadata.h"
+#include "edge-impulse-sdk/classifier/ei_model_types.h"
 
 const char* ei_classifier_inferencing_categories[] = { "helloworld", "noise", "unknown" };
 
@@ -42,6 +43,13 @@ ei_dsp_config_mfcc_t ei_dsp_config_3 = {
     0,
     0.98f,
     1
+};
+const ei_model_performance_calibration_t ei_calibration = {
+    1, /* integer version number */
+    926, /* average duration window ms */
+    0.75, /* detection threshold */
+    753,  /* suppression ms */
+    0x1, /* suppression flags */
 };
 
 #endif // _EI_CLASSIFIER_MODEL_METADATA_H_

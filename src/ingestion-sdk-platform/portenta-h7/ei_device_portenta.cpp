@@ -399,7 +399,7 @@ void ei_write_string(char *data, int length) {
  *
  * @param      c    The character
  */
-void ei_write_char(char c) {
+void ei_putc(char c) {
     Serial.write(c);
 }
 
