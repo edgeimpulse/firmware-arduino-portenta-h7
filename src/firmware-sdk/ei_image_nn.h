@@ -1,23 +1,18 @@
-/* Edge Impulse firmware SDK
- * Copyright (c) 2020 EdgeImpulse Inc.
+/*
+ * Copyright (c) 2022 EdgeImpulse Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS
+ * IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef __EIIMAGENN__H__
@@ -153,31 +148,14 @@ void EiImageNN::run_nn(bool debug, int delay_ms, bool use_max_baudrate)
         // Print framebuffer as JPG during debugging
         if(debug) {
             ei_printf("Begin output\n");
+            ei_printf("Framebuffer: ");
 
-            size_t jpeg_buffer_size = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT >= 128 * 128 ?
-                8192 * 3 :
-                4096 * 4;
-            uint8_t *jpeg_buffer = NULL;
-            jpeg_buffer = (uint8_t*)ei_malloc(jpeg_buffer_size);
-            if (!jpeg_buffer) {
-                ei_printf("ERR: Failed to allocate JPG buffer\r\n");
-                return;
-            }
-
-            size_t out_size;
-            int x = encode_rgb888_signal_as_jpg(&signal, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, jpeg_buffer, jpeg_buffer_size, &out_size);
+            int x = encode_rgb888_signal_as_jpg_and_output_base64(&signal, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
             if (x != 0) {
                 ei_printf("Failed to encode frame as JPEG (%d)\n", x);
                 break;
             }
-
-            ei_printf("Framebuffer: ");
-            base64_encode((char*)jpeg_buffer, out_size, ei_putc);
             ei_printf("\r\n");
-
-            if (jpeg_buffer) {
-                ei_free(jpeg_buffer);
-            }
         }
 
         // print the predictions
@@ -185,13 +163,15 @@ void EiImageNN::run_nn(bool debug, int delay_ms, bool use_max_baudrate)
                   result.timing.dsp, result.timing.classification, result.timing.anomaly);
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
         bool bb_found = result.bounding_boxes[0].value > 0;
-        for (size_t ix = 0; ix < EI_CLASSIFIER_OBJECT_DETECTION_COUNT; ix++) {
+        for (size_t ix = 0; ix < result.bounding_boxes_count; ix++) {
             auto bb = result.bounding_boxes[ix];
             if (bb.value == 0) {
                 continue;
             }
 
-            ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+            ei_printf("    %s (", bb.label);
+            ei_printf_float( bb.value);
+            ei_printf(") [ x: %u, y: %u, width: %u, height: %u ]\n", bb.x, bb.y, bb.width, bb.height);
         }
 
         if (!bb_found) {
@@ -199,11 +179,14 @@ void EiImageNN::run_nn(bool debug, int delay_ms, bool use_max_baudrate)
         }
 #else
         for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
-            ei_printf("    %s: %.5f\n", result.classification[ix].label,
-                                        result.classification[ix].value);
+            ei_printf("    %s: ", result.classification[ix].label);
+            ei_printf_float(result.classification[ix].value);
+            ei_printf("\n");
         }
 #if EI_CLASSIFIER_HAS_ANOMALY == 1
-        ei_printf("    anomaly score: %.3f\n", result.anomaly);
+        ei_printf("    anomaly score: ", );
+        ei_printf_float(result.anomaly);
+        ei_printf(\n);
 #endif
 #endif
 

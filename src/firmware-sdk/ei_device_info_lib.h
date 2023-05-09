@@ -1,23 +1,18 @@
-/* Edge Impulse firmware SDK
+/*
  * Copyright (c) 2022 EdgeImpulse Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS
+ * IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef EI_DEVICE_INFO_LIB
@@ -27,10 +22,12 @@
 #include "ei_camera_interface.h"
 #include "ei_config_types.h"
 #include "ei_device_memory.h"
+#include "ei_fusion.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 // Available sensors to sample from on this board
 typedef struct {
@@ -107,6 +104,11 @@ protected:
     std::string upload_host = "host";
     std::string upload_path = "path";
     std::string upload_api_key = "0123456789abcdef";
+    
+#if MULTI_FREQ_ENABLED == 1
+    uint8_t fusioning;
+    uint32_t sample_interval;    
+#endif
 
     EiDeviceMemory *memory;
 
@@ -161,6 +163,13 @@ public:
         }
     }
 
+    /**
+     * @brief This method should init device_id field
+     * to any unique ID available on the MCU.
+     * It may be MAC address, CPU ID or similar value.
+     */
+    virtual void init_device_id(void) = 0;
+
     EiDeviceMemory *get_memory(void)
     {
         return memory;
@@ -176,11 +185,13 @@ public:
         return device_id;
     }
 
-    virtual void set_device_id(std::string id)
+    virtual void set_device_id(std::string id, bool save = true)
     {
         device_id = id;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_management_url(void)
@@ -188,11 +199,13 @@ public:
         return management_url;
     }
 
-    virtual void set_management_url(std::string mgmt_url)
+    virtual void set_management_url(std::string mgmt_url, bool save = true)
     {
         management_url = mgmt_url;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_sample_hmac_key(void)
@@ -200,11 +213,13 @@ public:
         return sample_hmac_key;
     }
 
-    virtual void set_sample_hmac_key(std::string hmac_key)
+    virtual void set_sample_hmac_key(std::string hmac_key, bool save = true)
     {
         sample_hmac_key = hmac_key;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_sample_label(void)
@@ -212,11 +227,13 @@ public:
         return sample_label;
     }
 
-    virtual void set_sample_label(std::string label)
+    virtual void set_sample_label(std::string label, bool save = true)
     {
         sample_label = label;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual float get_sample_interval_ms(void)
@@ -224,11 +241,13 @@ public:
         return sample_interval_ms;
     }
 
-    virtual void set_sample_interval_ms(float interval_ms)
+    virtual void set_sample_interval_ms(float interval_ms, bool save = true)
     {
         sample_interval_ms = interval_ms;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual uint32_t get_sample_length_ms(void)
@@ -236,11 +255,13 @@ public:
         return sample_length_ms;
     }
 
-    virtual void set_sample_length_ms(uint32_t length_ms)
+    virtual void set_sample_length_ms(uint32_t length_ms, bool save = true)
     {
         sample_length_ms = length_ms;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_upload_host(void)
@@ -248,11 +269,13 @@ public:
         return upload_host;
     }
 
-    virtual void set_upload_host(std::string host)
+    virtual void set_upload_host(std::string host, bool save = true)
     {
         upload_host = host;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_upload_path(void)
@@ -260,11 +283,13 @@ public:
         return upload_path;
     }
 
-    virtual void set_upload_path(std::string path)
+    virtual void set_upload_path(std::string path, bool save = true)
     {
         upload_path = path;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual const std::string& get_upload_api_key(void)
@@ -272,11 +297,13 @@ public:
         return upload_api_key;
     }
 
-    virtual void set_upload_api_key(std::string upload_api_key)
+    virtual void set_upload_api_key(std::string upload_api_key, bool save = true)
     {
         this->upload_api_key = upload_api_key;
 
-        save_config();
+        if(save) {
+            save_config();
+        }
     }
 
     virtual bool get_wifi_connection_status(void)
@@ -286,7 +313,7 @@ public:
 
     virtual void clear_config(void)
     {
-        device_id = "";
+        device_id = "11:22:33:44:55:66";
         management_url = "";
         sample_hmac_key = "";
         sample_label = "";
@@ -295,6 +322,8 @@ public:
         upload_host = "";
         upload_path = "";
         upload_api_key = "";
+
+        this->init_device_id();
     }
 
     virtual bool get_wifi_present_status(void)
@@ -356,7 +385,57 @@ public:
         return false;
     }
 
-    virtual void set_state(EiState) {};
+#if MULTI_FREQ_ENABLED == 1
+	uint32_t actual_timer;
+    std::vector<float> multi_sample_interval;
+    void (*sample_multi_read_callback)(uint8_t);
+    
+    virtual bool start_multi_sample_thread(void (*sample_multi_read_cb)(uint8_t), float* fusion_sample_interval_ms, uint8_t num_fusioned)
+    {
+        uint8_t i;
+        uint8_t flag = 0;
+
+        this->sample_multi_read_callback = sample_multi_read_cb;
+        this->fusioning = num_fusioned;
+        this->multi_sample_interval.clear();
+
+        for (i = 0; i < num_fusioned; i++){
+            this->multi_sample_interval.push_back(fusion_sample_interval_ms[i]);
+        }
+
+        /* to improve, we consider just a 2 sensors case for now */
+        this->sample_interval = ei_fusion_calc_multi_gcd(this->multi_sample_interval.data(), this->fusioning);
+
+        /* force first reading */
+        for (i = 0; i < this->fusioning; i++){
+                flag |= (1<<i);
+        }
+        this->sample_multi_read_callback(flag);
+
+        this->actual_timer = 0;
+        /*
+        * TODO
+        * start timer/thread
+        */
+       
+        return false;
+    }
+
+    virtual uint8_t get_fusioning(void)
+    {
+        return fusioning;
+    }
+
+    virtual uint32_t get_sample_interval(void)
+    {
+        return sample_interval;
+    }
+
+#endif 
+
+    virtual void set_state(EiState)
+    {
+    }
 
     // ******* DEPRECATED BELOW HERE *********
     /**

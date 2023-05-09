@@ -88,10 +88,11 @@ static inline void mono_to_rgb(uint8_t mono_data, uint8_t *r, uint8_t *g, uint8_
  */
 static int calculate_resize_dimensions(uint32_t out_width, uint32_t out_height, uint32_t *resize_col_sz, uint32_t *resize_row_sz, bool *do_resize)
 {
-    const ei_device_resize_resolutions_t *list;
+    EiDevicePortenta *dev = static_cast<EiDevicePortenta*>(EiDeviceInfo::get_device());
+    const ei_device_snapshot_resolutions_t *list;
     size_t list_size;
 
-    int dl = EiDevice.get_resize_list((const ei_device_resize_resolutions_t **)&list, &list_size);
+    int dl = dev->get_resize_list((const ei_device_snapshot_resolutions_t **)&list, &list_size);
     if (dl) { /* apparently false is OK here?! */
         ei_printf("ERR: Device has no image resize feature\n");
         return 1;
@@ -113,24 +114,6 @@ static int calculate_resize_dimensions(uint32_t out_width, uint32_t out_height, 
 
     return 0;
 }
-
-#include "mbed.h"
- static void print_memory_info2() {
-     // allocate enough room for every thread's stack statistics
-     int cnt = osThreadGetCount();
-     mbed_stats_stack_t *stats = (mbed_stats_stack_t*) ei_malloc(cnt * sizeof(mbed_stats_stack_t));
-
-     cnt = mbed_stats_stack_get_each(stats, cnt);
-     for (int i = 0; i < cnt; i++) {
-         ei_printf("Thread: 0x%lX, Stack size: %lu / %lu\r\n", stats[i].thread_id, stats[i].max_size, stats[i].reserved_size);
-     }
-     ei_free(stats);
-
-     // Grab the heap statistics
-     mbed_stats_heap_t heap_stats;
-     mbed_stats_heap_get(&heap_stats);
-     ei_printf("Heap size: %lu / %lu bytes (max: %lu)\r\n", heap_stats.current_size, heap_stats.reserved_size, heap_stats.max_size);
- }
 
 /**
  * @brief   Setup image sensor & start streaming
@@ -206,6 +189,7 @@ void ei_camera_deinit(void) {
  *
  */
 bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) {
+    EiDevicePortenta *dev = static_cast<EiDevicePortenta*>(EiDeviceInfo::get_device());
     bool do_resize = false;
     bool do_crop = false;
 
@@ -214,7 +198,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         return false;
     }
 
-    EiDevice.set_state(eiStateSampling);
+    dev->set_state(eiStateSampling);
 
     int snapshot_response = cam.grabFrame(fb, 3000);
     if (snapshot_response != 0) {
@@ -283,7 +267,7 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
             8); // bits per pixel
     }
 
-    EiDevice.set_state(eiStateIdle);
+    dev->set_state(eiStateIdle);
 
     return true;
 }
@@ -327,6 +311,7 @@ bool ei_camera_take_snapshot_encode_and_output(size_t width, size_t height, bool
 bool ei_camera_start_snapshot_stream_encode_and_output(size_t width, size_t height, bool use_max_baudrate)
 {
     bool result = true;
+    EiDevicePortenta *dev = static_cast<EiDevicePortenta*>(EiDeviceInfo::get_device());
 
     ei_printf("Starting snapshot stream...\r\n");
 
@@ -347,7 +332,7 @@ bool ei_camera_start_snapshot_stream_encode_and_output(size_t width, size_t heig
 
         if (stopped_by_user) {
             ei_printf("Snapshot streaming stopped by user\r\n");
-            EiDevice.set_state(eiStateIdle);
+            dev->set_state(eiStateIdle);
             break;
         }
     }
@@ -371,6 +356,7 @@ bool ei_camera_start_snapshot_stream_encode_and_output(size_t width, size_t heig
  */
 static bool take_snapshot(size_t width, size_t height, bool print_oks)
 {
+    EiDevicePortenta *dev = static_cast<EiDevicePortenta*>(EiDeviceInfo::get_device());
     if (print_oks) {
         ei_printf("OK\r\n");
     }
@@ -462,7 +448,7 @@ static bool take_snapshot(size_t width, size_t height, bool print_oks)
                 per_pixel_buffer_ix = 0;
                 ei_free(base64_buffer);
             }
-            EiDevice.set_state(eiStateUploading);
+            dev->set_state(eiStateUploading);
         }
     }
 
@@ -489,7 +475,7 @@ static bool take_snapshot(size_t width, size_t height, bool print_oks)
     ei_free(base64_buffer);
     ei_free(signal_buf);
     ei_free(per_pixel_buffer);
-    EiDevice.set_state(eiStateIdle);
+    dev->set_state(eiStateIdle);
 
     if (print_oks) {
         ei_printf("OK\r\n");
@@ -500,11 +486,12 @@ static bool take_snapshot(size_t width, size_t height, bool print_oks)
 
 static bool verify_inputs(size_t width, size_t height)
 {
+    EiDevicePortenta *dev = static_cast<EiDevicePortenta*>(EiDeviceInfo::get_device());
     const ei_device_snapshot_resolutions_t *list;
     size_t list_size;
     const char *color_depth;
 
-    int dl = EiDevice.get_snapshot_list((const ei_device_snapshot_resolutions_t **)&list, &list_size, &color_depth);
+    int dl = dev->get_snapshot_list((const ei_device_snapshot_resolutions_t **)&list, &list_size, &color_depth);
     if (dl) { /* apparently false is OK here?! */
         ei_printf("ERR: Device has no snapshot feature\r\n");
         return false;

@@ -22,16 +22,14 @@
 
 /* Include ----------------------------------------------------------------- */
 #include "ei_microphone.h"
-#include "ei_portenta_fs_commands.h"
-#include "ei_device_portenta.h"
 #include <PDM.h>
-#include "ei_main.h"
 #include "ei_config_types.h"
 #include "sensor_aq_mbedtls_hs256.h"
 #include "sensor_aq_none.h"
 #include "edge-impulse-sdk/CMSIS/DSP/Include/arm_math.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
-
+#include "ei_device_portenta.h"
+#include "ei_flash_portenta.h"
 
 #define AUDIO_SAMPLING_FREQUENCY            16000
 
@@ -45,10 +43,11 @@ typedef struct {
 } inference_t;
 
 /* Extern declared --------------------------------------------------------- */
-extern ei_config_t *ei_config_get_config();
 extern mbed::DigitalOut led;
 
 using namespace ei;
+using namespace rtos;
+using namespace events;
 
 static size_t ei_write(const void*, size_t size, size_t count, EI_SENSOR_AQ_STREAM*)
 {
@@ -102,8 +101,10 @@ static void ei_microphone_blink() {
 
 static void audio_buffer_callback(uint32_t n_bytes)
 {
+    EiDeviceMemory *mem = EiDeviceInfo::get_device()->get_memory();
+
     if(record_ready == true){
-        ei_portenta_fs_write_samples((const void *)sampleBuffer, headerOffset + current_sample, n_bytes);
+        mem->write_sample_data((const uint8_t *)sampleBuffer, headerOffset + current_sample, n_bytes);
     // ei_printf("write: %d %d\r\n", headerOffset + current_sample, n_bytes);
         ei_mic_ctx.signature_ctx->update(ei_mic_ctx.signature_ctx, (uint8_t*)sampleBuffer, n_bytes);
 
@@ -154,9 +155,9 @@ static void pdm_data_ready_inference_callback(void)
     }
 }
 
-static void finish_and_upload(char *filename, uint32_t sample_length_ms) {
-
-
+static void finish_and_upload(char *filename, uint32_t sample_length_ms)
+{
+    EiDeviceInfo *dev = EiDeviceInfo::get_device();
     ei_printf("Done sampling, total bytes collected: %u\n", current_sample);
 
     mbed::Ticker t;
@@ -181,7 +182,7 @@ static void finish_and_upload(char *filename, uint32_t sample_length_ms) {
 
     ei_printf("OK\n");
 
-    EiDevice.set_state(eiStateIdle);
+    dev->set_state(eiStateIdle);
 }
 
 static int insert_ref(char *buffer, int hdrLength)
@@ -208,11 +209,13 @@ static int insert_ref(char *buffer, int hdrLength)
 
 static bool create_header(void)
 {
-    sensor_aq_init_mbedtls_hs256_context(&ei_mic_signing_ctx, &ei_mic_hs_ctx, ei_config_get_config()->sample_hmac_key);
+    EiDeviceInfo *dev = EiDeviceInfo::get_device();
+    EiDeviceMemory *mem = dev->get_memory();
+    sensor_aq_init_mbedtls_hs256_context(&ei_mic_signing_ctx, &ei_mic_hs_ctx, dev->get_sample_hmac_key().c_str());
 
     sensor_aq_payload_info payload = {
-        EiDevice.get_id_pointer(),
-        EiDevice.get_type_pointer(),
+        dev->get_id_pointer(),
+        dev->get_type_pointer(),
         1000.0f / static_cast<float>(AUDIO_SAMPLING_FREQUENCY),
         { { "audio", "wav" } }
     };
@@ -260,7 +263,9 @@ static bool create_header(void)
 
 bool ei_microphone_record(uint32_t sample_length_ms, uint32_t start_delay_ms, bool print_start_messages)
 {
-    EiDevice.set_state(eiStateErasingFlash);
+    EiDeviceMemory *mem = EiDeviceInfo::get_device()->get_memory();
+    EiDeviceInfo *dev = EiDeviceInfo::get_device();
+    dev->set_state(eiStateErasingFlash);
 
     if (print_start_messages) {
         ei_printf("Starting in %lu ms... (or until all flash was erased)\n", start_delay_ms < 2000 ? 2000 : start_delay_ms);
@@ -274,16 +279,16 @@ bool ei_microphone_record(uint32_t sample_length_ms, uint32_t start_delay_ms, bo
     create_header();
 
     uint32_t bytesRequiredSamples = samples_required << 1;
-    uint32_t totalBytesRequired = BYTE_ALIGN(bytesRequiredSamples + headerOffset, ei_portenta_fs_get_block_size());
-    int tr = ei_portenta_fs_erase_sampledata(0, totalBytesRequired);
-    if (tr != PORTENTA_FS_CMD_OK) {
+    uint32_t totalBytesRequired = BYTE_ALIGN(bytesRequiredSamples + headerOffset, mem->block_size);
+    int tr = mem->erase_sample_data(0, totalBytesRequired);
+    if (tr != totalBytesRequired) {
         ei_printf("ERR: Failed to erase blockdevice (%d), (%d)\n", tr, totalBytesRequired);
         return false;
     }
 
     // Write to blockdevice
-    tr = ei_portenta_fs_write_samples(ei_mic_ctx.cbor_buffer.ptr, 0, headerOffset);
-    if (tr != 0) {
+    tr = mem->write_sample_data((const uint8_t*)ei_mic_ctx.cbor_buffer.ptr, 0, headerOffset);
+    if (tr != headerOffset) {
         ei_printf("ERR: Failed to write to header blockdevice (%d)\n", tr);
         return false;
     }
@@ -411,25 +416,27 @@ bool ei_microphone_inference_end(void)
  */
 bool ei_microphone_sample_start(void)
 {
+    EiDeviceInfo *dev = EiDeviceInfo::get_device();
+    EiDeviceMemory *mem = EiDeviceInfo::get_device()->get_memory();
     // this sensor does not have settable interval...
     // ei_config_set_sample_interval(static_cast<float>(1000) / static_cast<float>(AUDIO_SAMPLING_FREQUENCY));
     int sample_length_blocks;
 
     ei_printf("Sampling settings:\n");
-    ei_printf("\tInterval: %.5f ms.\n", (float)ei_config_get_config()->sample_interval_ms);
-    ei_printf("\tLength: %lu ms.\n", ei_config_get_config()->sample_length_ms);
-    ei_printf("\tName: %s\n", ei_config_get_config()->sample_label);
-    ei_printf("\tHMAC Key: %s\n", ei_config_get_config()->sample_hmac_key);
+    ei_printf("\tInterval: %.5f ms.\n", dev->get_sample_interval_ms());
+    ei_printf("\tLength: %lu ms.\n", dev->get_sample_length_ms());
+    ei_printf("\tName: %s\n", dev->get_sample_label().c_str());
+    ei_printf("\tHMAC Key: %s\n", dev->get_sample_hmac_key().c_str());
+
     char filename[256];
-    int fn_r = snprintf(filename, 256, "/fs/%s", ei_config_get_config()->sample_label);
+    int fn_r = snprintf(filename, 256, "/fs/%s", dev->get_sample_label().c_str());
     if (fn_r <= 0) {
         ei_printf("ERR: Failed to allocate file name\n");
         return false;
     }
     ei_printf("\tFile name: %s\n", filename);
 
-
-    samples_required = (uint32_t)(((float)ei_config_get_config()->sample_length_ms) / ei_config_get_config()->sample_interval_ms);
+    samples_required = (uint32_t)((dev->get_sample_length_ms()) / dev->get_sample_interval_ms());
 
     /* Round to even number of samples for word align flash write */
     if(samples_required & 1) { samples_required++; }
@@ -438,7 +445,7 @@ bool ei_microphone_sample_start(void)
 
     is_uploaded = false;
 
-    // sampleBuffer = (int16_t *)ei_malloc(ei_portenta_fs_get_block_size());
+    // sampleBuffer = (int16_t *)ei_malloc(mem->block_size);
 
     if (sampleBuffer == NULL) {
         return false;
@@ -451,17 +458,17 @@ bool ei_microphone_sample_start(void)
     // Note: values >=52 do not work
     //PDM.setGain(40);
 
-    ei_printf("Sector size: %d req: %d\r\n", ei_portenta_fs_get_block_size(), samples_required);
+    ei_printf("Sector size: %d req: %d\r\n", mem->block_size, samples_required);
 
-    //PDM.setBufferSize(ei_portenta_fs_get_block_size());
+    //PDM.setBufferSize(mem->block_size);
     PDM.setBufferSize(2048);
 
-    bool r = ei_microphone_record(ei_config_get_config()->sample_length_ms, (((samples_required <<1)/ ei_portenta_fs_get_block_size()) * PORTENTA_FS_BLOCK_ERASE_TIME_MS), true);
+    bool r = ei_microphone_record(dev->get_sample_length_ms(), (((samples_required <<1)/ mem->block_size) * PORTENTA_FS_BLOCK_ERASE_TIME_MS), true);
     if (!r) {
         return r;
     }
     record_ready = true;
-    EiDevice.set_state(eiStateSampling);
+    dev->set_state(eiStateSampling);
 
 
     while(record_ready == true) {
@@ -477,14 +484,14 @@ bool ei_microphone_sample_start(void)
     }
 
     // load the first block in flash...
-    uint8_t *block_buffer = (uint8_t*)ei_malloc(ei_portenta_fs_get_block_size());
+    uint8_t *block_buffer = (uint8_t*)ei_malloc(mem->block_size);
     if (!block_buffer) {
         ei_printf("ERR: Failed to allocate a block buffer to write the hash\n");
         return false;
     }
 
-    int j = ei_portenta_fs_read_sample_data(block_buffer, 0, ei_portenta_fs_get_block_size());
-    if (j != 0) {
+    int j = mem->read_sample_data(block_buffer, 0, mem->block_size);
+    if (j != mem->block_size) {
         ei_printf("ERR: Failed to read first block (%d)\n", j);
         ei_free(block_buffer);
         return false;
@@ -509,24 +516,24 @@ bool ei_microphone_sample_start(void)
         block_buffer[ei_mic_ctx.signature_index + (hash_ix * 2) + 1] = second_c;
     }
 
-    j = ei_portenta_fs_erase_sampledata(0, ei_portenta_fs_get_block_size());
-    if (j != 0) {
+    j = mem->erase_sample_data(0, mem->block_size);
+    if (j != mem->block_size) {
         ei_printf("ERR: Failed to erase first block (%d)\n", j);
         ei_free(block_buffer);
         return false;
     }
 
-    j = ei_portenta_fs_write_samples(block_buffer, 0, ei_portenta_fs_get_block_size());
+    j = mem->write_sample_data(block_buffer, 0, mem->block_size);
 
     ei_free(block_buffer);
 
-    if (j != 0) {
+    if (j != mem->block_size) {
         ei_printf("ERR: Failed to write first block with updated hash (%d)\n", j);
         return false;
     }
 
 
-    finish_and_upload(filename, ei_config_get_config()->sample_length_ms);
+    finish_and_upload(filename, dev->get_sample_length_ms());
 
     return true;
 }

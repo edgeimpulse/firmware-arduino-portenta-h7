@@ -200,9 +200,7 @@ fi
 
 INCLUDE="-I./src"
 INCLUDE+=" -I./src/model-parameters"
-INCLUDE+=" -I./src/repl"
 INCLUDE+=" -I./src/ingestion-sdk-c/"
-INCLUDE+=" -I./src/ingestion-sdk-c/inc"
 INCLUDE+=" -I./src/ingestion-sdk-c/inc/signing"
 INCLUDE+=" -I./src/ingestion-sdk-platform/portenta-h7"
 INCLUDE+=" -I./src/sensors"
@@ -210,6 +208,7 @@ INCLUDE+=" -I./src/QCBOR/inc"
 INCLUDE+=" -I./src/QCBOR/src"
 INCLUDE+=" -I./src/mbedtls_hmac_sha256_sw/"
 INCLUDE+=" -I./src/edge-impulse-sdk/"
+INCLUDE+=" -I./src/firmware-sdk/"
 
 FLAGS="-DARDUINOSTL_M_H"
 FLAGS+=" -DMBED_HEAP_STATS_ENABLED=1"

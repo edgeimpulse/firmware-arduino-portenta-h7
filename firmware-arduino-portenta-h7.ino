@@ -26,7 +26,6 @@
 
 
 /* Private variables ------------------------------------------------------- */
-static rtos::Thread mbed_thread(osPriorityAboveNormal, 8 * 1024);
 
 /* Public functions -------------------------------------------------------- */
 
@@ -34,12 +33,9 @@ void setup() {
 
     Serial.begin(115200);
 
-    ei_main();
-
-    mbed_thread.start(&ei_main);
+    ei_main_init();
 }
 
 void loop() {
-    // delay will pause the thread, so the loop won't take any cycles away from us here
-    delay(10000);
+    ei_main();
 }

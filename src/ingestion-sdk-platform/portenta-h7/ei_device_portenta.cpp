@@ -22,20 +22,22 @@
 
 /* Include ----------------------------------------------------------------- */
 #include "ei_device_portenta.h"
-#include "ei_portenta_fs_commands.h"
 #include "edge-impulse-sdk/porting/ei_classifier_porting.h"
-#include "sensors/ei_microphone.h"
+
 #include <stdarg.h>
 
 #include <stdio.h>
 #include "Arduino.h"
 #include <USB/PluggableUSBSerial.h> // for _SerialUSB
 #include "mbed.h"
-/* Constants --------------------------------------------------------------- */
+#include "ei_flash_portenta.h"
+#include "sensors/ei_camera.h"
+#include "sensors/ei_microphone.h"
 
-/** Memory location for the arduino device address */
-#define DEVICE_ID_LSB_ADDR  ((uint32_t)0x100000A4)
-#define DEVICE_ID_MSB_ADDR  ((uint32_t)0x100000A8)
+#ifdef EI_CAMERA_FRAME_BUFFER_SDRAM
+#include "SDRAM.h"
+#endif
+/* Constants --------------------------------------------------------------- */
 
 /** Max size for device id array */
 #define DEVICE_ID_MAX_SIZE  32
@@ -47,16 +49,8 @@ typedef enum
 
 }used_sensors_t;
 
-static tEiState ei_program_state = eiStateIdle;
-
 #define EDGE_STRINGIZE_(x) #x
 #define EDGE_STRINGIZE(x) EDGE_STRINGIZE_(x)
-
-/** Device type */
-static const char *ei_device_type = EDGE_STRINGIZE(TARGET_NAME);
-
-/** Device id array */
-static char ei_device_id[DEVICE_ID_MAX_SIZE];
 
 /** Max Data Output Baudrate
  * @note: must be 115200 for the CLI even though the baudrate is not switched internally,
@@ -73,70 +67,60 @@ const ei_device_data_output_baudrate_t ei_dev_default_data_output_baudrate = {
     115200,
 };
 
-/** Device object, for this class only 1 object should exist */
-EiDevicePortenta EiDevice;
-
 /* Private function declarations ------------------------------------------- */
-static int get_id_c(uint8_t out_buffer[32], size_t *out_size);
-static int get_type_c(uint8_t out_buffer[32], size_t *out_size);
-static bool get_wifi_connection_status_c(void);
-static bool get_wifi_present_status_c(void);
-static int get_data_output_baudrate_c(ei_device_data_output_baudrate_t *baudrate);
-static void set_max_data_output_baudrate_c();
-static void set_default_data_output_baudrate_c();
 
 /* Public functions -------------------------------------------------------- */
 
-EiDevicePortenta::EiDevicePortenta(void)
-{
-    uint32_t *id_msb = (uint32_t *)DEVICE_ID_MSB_ADDR;
-    uint32_t *id_lsb = (uint32_t *)DEVICE_ID_LSB_ADDR;
+EiDevicePortenta::EiDevicePortenta(EiDeviceMemory* mem)
+{   
+    EiDeviceInfo::memory = mem;
 
-    /* Setup device ID */
-    snprintf(&ei_device_id[0], DEVICE_ID_MAX_SIZE, "%02X:%02X:%02X:%02X:%02X:%02X"
-        ,(*id_msb >> 8) & 0xFF
-        ,(*id_msb >> 0) & 0xFF
-        ,(*id_lsb >> 24)& 0xFF
-        ,(*id_lsb >> 16)& 0xFF
-        ,(*id_lsb >> 8) & 0xFF
-        ,(*id_lsb >> 0) & 0xFF
+    load_config();
+    init_device_id();
+
+    device_type = std::string(EDGE_STRINGIZE(TARGET_NAME));
+
+    ei_program_state = eiStateIdle;
+
+#ifdef EI_CAMERA_FRAME_BUFFER_SDRAM
+    // initialise the SDRAM
+    SDRAM.begin(SDRAM_START_ADDRESS);
+#endif
+    // (may) depends on the SDRAM
+    camera_present = ei_camera_init();
+}
+
+EiDeviceInfo* EiDeviceInfo::get_device(void)
+{
+    static EiFlashMemory memory(sizeof(EiConfig));
+    static EiDevicePortenta dev(&memory);
+
+    return &dev;
+}
+
+void EiDevicePortenta::init_device_id(void)
+{
+    uint8_t portenta_id[48] = {0};
+    char buf[DEVICE_ID_MAX_SIZE];
+    getUniqueSerialNumber(portenta_id);
+
+    /* Setup device ID ei_device_id */
+    snprintf(&buf[0], DEVICE_ID_MAX_SIZE, "%c%c:%c%c:%c%c:%c%c:%c%c:%c%c"
+        , portenta_id[0]
+        , portenta_id[2]
+        , portenta_id[4]
+        , portenta_id[6]
+        , portenta_id[8]
+        , portenta_id[10]
+        , portenta_id[12]
+        , portenta_id[14]
+        , portenta_id[16]
+        , portenta_id[18]
+        , portenta_id[20]
+        , portenta_id[22]
         );
-}
-
-/**
- * @brief      For the device ID, the BLE mac address is used.
- *             The mac address string is copied to the out_buffer.
- *
- * @param      out_buffer  Destination array for id string
- * @param      out_size    Length of id string
- *
- * @return     0
- */
-int EiDevicePortenta::get_id(uint8_t out_buffer[32], size_t *out_size)
-{
-    return get_id_c(out_buffer, out_size);
-}
-
-/**
- * @brief      Gets the identifier pointer.
- *
- * @return     The identifier pointer.
- */
-const char *EiDevicePortenta::get_id_pointer(void)
-{
-    return (const char *)ei_device_id;
-}
-
-/**
- * @brief      Get the data output baudrate
- *
- * @param      baudrate    Baudrate used to output data
- *
- * @return     0
- */
-int EiDevicePortenta::get_data_output_baudrate(ei_device_data_output_baudrate_t *baudrate)
-{
-    return get_data_output_baudrate_c(baudrate);
+    
+    device_id = std::string(buf);
 }
 
 /**
@@ -145,39 +129,16 @@ int EiDevicePortenta::get_data_output_baudrate(ei_device_data_output_baudrate_t 
  */
 void EiDevicePortenta::set_max_data_output_baudrate()
 {
-    set_max_data_output_baudrate_c();
+    ei_serial_set_baudrate(ei_dev_max_data_output_baudrate.val);
 }
 
 /**
  * @brief      Set output baudrate to default
  *
  */
-void EiDevicePortenta::set_default_data_output_baudrate()
+void EiDevicePortenta::set_default_data_output_baudrate(void)
 {
-    set_default_data_output_baudrate_c();
-}
-
-/**
- * @brief      Copy device type in out_buffer & update out_size
- *
- * @param      out_buffer  Destination array for device type string
- * @param      out_size    Length of string
- *
- * @return     -1 if device type string exceeds out_buffer
- */
-int EiDevicePortenta::get_type(uint8_t out_buffer[32], size_t *out_size)
-{
-    return get_type_c(out_buffer, out_size);
-}
-
-/**
- * @brief      Gets the type pointer.
- *
- * @return     The type pointer.
- */
-const char *EiDevicePortenta::get_type_pointer(void)
-{
-    return (const char *)ei_device_type;
+    ei_serial_set_baudrate(ei_dev_default_data_output_baudrate.val);
 }
 
 /**
@@ -211,7 +172,7 @@ bool EiDevicePortenta::get_wifi_present_status(void)
 bool EiDevicePortenta::get_sensor_list(const ei_device_sensor_t **sensor_list, size_t *sensor_list_size)
 {
     /* Calculate number of bytes available on flash for sampling, reserve 1 block for header + overhead */
-    uint32_t available_bytes = (ei_portenta_fs_get_n_available_sample_blocks()-1) * ei_portenta_fs_get_block_size();
+    uint32_t available_bytes = (memory->get_available_sample_blocks()-1) * memory->block_size;
 
     sensors[MICROPHONE].name = "Built-in microphone";
     sensors[MICROPHONE].start_sampling_cb = &ei_microphone_sample_start;
@@ -261,7 +222,7 @@ bool EiDevicePortenta::get_snapshot_list(const ei_device_snapshot_resolutions_t 
  *
  * @return     False if all went ok
  */
-bool EiDevicePortenta::get_resize_list(const ei_device_resize_resolutions_t **resize_list, size_t *resize_list_size)
+bool EiDevicePortenta::get_resize_list(const ei_device_snapshot_resolutions_t **resize_list, size_t *resize_list_size)
 {
     resize_resolutions[0].width = 128;
     resize_resolutions[0].height = 96;
@@ -287,7 +248,8 @@ bool EiDevicePortenta::get_resize_list(const ei_device_resize_resolutions_t **re
 mbed::DigitalOut led_red(LED_RED);
 mbed::DigitalOut led_green(LED_GREEN);
 mbed::DigitalOut led_blue(LED_BLUE);
-void EiDevicePortenta::set_state(tEiState state)
+
+void EiDevicePortenta::set_state(EiState state)
 {
     ei_program_state = state;
     static uint8_t upload_toggle = 0;
@@ -323,56 +285,6 @@ void EiDevicePortenta::set_state(tEiState state)
 }
 
 /**
- * @brief      Get a C callback for the get_id method
- *
- * @return     Pointer to c get function
- */
-c_callback EiDevicePortenta::get_id_function(void)
-{
-    return &get_id_c;
-}
-
-/**
- * @brief      Get a C callback for the get_type method
- *
- * @return     Pointer to c get function
- */
-c_callback EiDevicePortenta::get_type_function(void)
-{
-    return &get_type_c;
-}
-
-/**
- * @brief      Get a C callback for the get_wifi_connection_status method
- *
- * @return     Pointer to c get function
- */
-c_callback_status EiDevicePortenta::get_wifi_connection_status_function(void)
-{
-    return &get_wifi_connection_status_c;
-}
-
-/**
- * @brief      Get a C callback for the wifi present method
- *
- * @return     The wifi present status function.
- */
-c_callback_status EiDevicePortenta::get_wifi_present_status_function(void)
-{
-    return &get_wifi_present_status_c;
-}
-
-/**
- * @brief      Get a C callback for the get_snapshot_output_buffer method
- *
- * @return     Pointer to c get function
- */
-c_callback_get_data_output_baudrate EiDevicePortenta::get_data_output_baudrate_function(void)
-{
-    return &get_data_output_baudrate_c;
-}
-
-/**
  * @brief      Call this function periocally during inference to
  *             detect a user stop command
  *
@@ -392,15 +304,6 @@ void ei_write_string(char *data, int length) {
     while (length--) {
         Serial.write(*(data++));
     }
-}
-
-/**
- * @brief      Write serial data to Serial output
- *
- * @param      c    The character
- */
-void ei_putc(char c) {
-    Serial.write(c);
 }
 
 /**
@@ -430,71 +333,29 @@ char ei_get_serial_byte(void) {
     return Serial.read();
 }
 
+void ei_print_memory_info2(void) 
+{
+    // allocate enough room for every thread's stack statistics
+    int cnt = osThreadGetCount();    
+    mbed_stats_thread_t *thread_stats = (mbed_stats_thread_t*) ei_malloc(cnt * sizeof(mbed_stats_stack_t));
+
+    size_t thread_cnt =  mbed_stats_thread_get_each(thread_stats, cnt);
+    for (int i = 0; i < thread_cnt; i++) {
+        ei_printf("Thread: 0x%lX, Name: %s, Stack size: %lu, Stack space: %lu\r\n", thread_stats[i].id, thread_stats[i].name, thread_stats[i].stack_size, thread_stats[i].stack_space);
+    }
+    ei_free(thread_stats);
+
+    cnt = osThreadGetCount();
+    mbed_stats_stack_t *stats = (mbed_stats_stack_t*) ei_malloc(cnt * sizeof(mbed_stats_stack_t));
+    cnt = mbed_stats_stack_get_each(stats, cnt);
+    for (int i = 0; i < cnt; i++) {
+        ei_printf("Thread: 0x%lX, Stack size: %lu / %lu\r\n", stats[i].thread_id, stats[i].max_size, stats[i].reserved_size);
+    }
+    ei_free(stats);
+
+    // Grab the heap statistics
+    mbed_stats_heap_t heap_stats;
+    mbed_stats_heap_get(&heap_stats);
+    ei_printf("Heap size: %lu / %lu bytes (max: %lu)\r\n", heap_stats.current_size, heap_stats.reserved_size, heap_stats.max_size);
+}
 /* Private functions ------------------------------------------------------- */
-
-static int get_id_c(uint8_t out_buffer[32], size_t *out_size)
-{
-    size_t length = strlen(ei_device_id);
-
-    if(length < 32) {
-        memcpy(out_buffer, ei_device_id, length);
-
-        *out_size = length;
-        return 0;
-    }
-
-    else {
-        *out_size = 0;
-        return -1;
-    }
-}
-
-static int get_type_c(uint8_t out_buffer[32], size_t *out_size)
-{
-    size_t length = strlen(ei_device_type);
-
-    if(length < 32) {
-        memcpy(out_buffer, ei_device_type, length);
-
-        *out_size = length;
-        return 0;
-    }
-
-    else {
-        *out_size = 0;
-        return -1;
-    }
-}
-
-static bool get_wifi_connection_status_c(void)
-{
-    return false;
-}
-
-static bool get_wifi_present_status_c(void)
-{
-    return false;
-}
-
-static int get_data_output_baudrate_c(ei_device_data_output_baudrate_t *baudrate)
-{
-    size_t length = strlen(ei_dev_max_data_output_baudrate.str);
-
-    if(length < 32) {
-        memcpy(baudrate, &ei_dev_max_data_output_baudrate, sizeof(ei_device_data_output_baudrate_t));
-        return 0;
-    }
-    else {
-        return -1;
-    }
-}
-
-static void set_max_data_output_baudrate_c()
-{
-    ei_serial_set_baudrate(ei_dev_max_data_output_baudrate.val);
-}
-
-static void set_default_data_output_baudrate_c()
-{
-    ei_serial_set_baudrate(ei_dev_default_data_output_baudrate.val);
-}

@@ -30,6 +30,8 @@ _Installing Arduino IDE is a requirement only for Windows users. macOS and Linux
 
 ### With Arduino CLI
 
+#### Linux and MacOs
+
 1. Build the application:
 
     ```
@@ -42,6 +44,32 @@ _Installing Arduino IDE is a requirement only for Windows users. macOS and Linux
     ./arduino-build.sh --flash
     ```
 
+1. Build and flash the application:
+
+    ```
+    ./arduino-build.sh --all
+    ```
+
+#### Windows
+
+1. Build the application:
+
+    ```
+    arduino-win-build.bat --build
+    ```
+
+1. Flash the application:
+
+    ```
+    arduino-win-build.bat --flash
+    ```
+
+1. Build and flash the application:
+
+    ```
+    arduino-win-build.bat --all
+    ```
+   
 ### Arduino IDE
 
 1. In Tools -> Board -> Boards Manager, search for `portenta` and install the **Arduino Mbed OS Portenta Boards v2.8.0**.

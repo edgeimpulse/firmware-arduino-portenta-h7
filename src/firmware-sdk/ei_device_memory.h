@@ -1,23 +1,18 @@
-/* Edge Impulse firmware SDK
+/*
  * Copyright (c) 2022 EdgeImpulse Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an "AS
+ * IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef EI_DEVICE_MEMORY_H
@@ -90,13 +85,13 @@ public:
     /**
      * @brief size of the memory block in bytes
      */
-    const uint32_t block_size;
+    uint32_t block_size;
     /**
      * @brief Erase time of a single block/sector/page in ms (miliseconds).
      * For RAM it can be set to 0 or 1.
      * For Flash memories take this value from datasheet or measure.
      */
-    const uint32_t block_erase_time;
+    uint32_t block_erase_time;
 
     /**
      * @brief Construct a new Ei Device Memory object, make sure to pass all necessary data
@@ -176,6 +171,17 @@ public:
 
         return erase_data(offset + address, num_bytes);
     }
+
+
+    /**
+     * @brief Necessary for targets, such as RP2040, which have large Flash page size (256 bytes)
+     * For the targets, that don't require it, a default dummy implementation is provided
+     * to reduce boilerplate code in target flash implementation file.
+     */
+    virtual uint32_t flush_data(void)
+    {
+        return 0;
+    }
 };
 
 template <int BLOCK_SIZE = 512, int MEMORY_BLOCKS = 8> class EiDeviceRAM : public EiDeviceMemory {
@@ -183,7 +189,7 @@ template <int BLOCK_SIZE = 512, int MEMORY_BLOCKS = 8> class EiDeviceRAM : publi
 protected:
     uint8_t ram_memory[MEMORY_BLOCKS * BLOCK_SIZE];
 
-    uint32_t read_data(uint8_t *data, uint32_t address, uint32_t num_bytes)
+    uint32_t read_data(uint8_t *data, uint32_t address, uint32_t num_bytes) override
     {
         if (num_bytes > memory_size - address) {
             num_bytes = memory_size - address;
@@ -194,7 +200,7 @@ protected:
         return num_bytes;
     }
 
-    uint32_t write_data(const uint8_t *data, uint32_t address, uint32_t num_bytes)
+    uint32_t write_data(const uint8_t *data, uint32_t address, uint32_t num_bytes) override
     {
         if (num_bytes > memory_size - address) {
             num_bytes = memory_size - address;
@@ -205,7 +211,7 @@ protected:
         return num_bytes;
     }
 
-    uint32_t erase_data(uint32_t address, uint32_t num_bytes)
+    uint32_t erase_data(uint32_t address, uint32_t num_bytes) override
     {
         if (num_bytes > memory_size - address) {
             num_bytes = memory_size - address;

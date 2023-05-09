@@ -30,11 +30,12 @@ using namespace events;
 
 extern void ei_printf(const char *format, ...);
 extern void ei_write_string(char *data, int length);
-extern mbed::Stream* ei_get_serial();
+extern mbed::Stream* ei_get_serial(void);
 int ei_get_serial_available(void);
 char ei_get_serial_byte(void);
 
-void print_memory_info();
-void ei_main();
+void print_memory_info(void);
+void ei_main_init(void);
+void ei_main(void);
 
 #endif // EI_MAIN_H
