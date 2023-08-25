@@ -14,6 +14,10 @@ set BUILD_OPTION=--build
 set FLASH_OPTION=--flash
 set ALL_OPTION=--all
 
+IF [%1]==[] (
+    GOTO NOPARAMETER
+)
+
 set COMMAND=%1
 
 FOR %%I IN (.) DO SET DIRECTORY_NAME=%%~nI%%~xI
@@ -151,5 +155,9 @@ echo      $ arduino-cli core install arduino:mbed_portenta@2.8.0
 echo Otherwise, double tap the RESET button to load the bootloader and try again
 @pause
 exit /b %ERRORLEVEL%
+
+:NOPARAMETER
+echo No arguments, pleaase invoke with --build or --flash or --all. See README.md for instructions
+exit /b 1
 
 :COMMON_EXIT
