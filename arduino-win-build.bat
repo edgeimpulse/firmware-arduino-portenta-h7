@@ -60,8 +60,8 @@ IF %ERRORLEVEL% NEQ 0 (
 :AFTERINSTALLMBEDCORE
 
 :: define and include
-set DEFINE=-DARDUINOSTL_M_H -DMBED_HEAP_STATS_ENABLED=1 -DMBED_STACK_STATS_ENABLED=1 -O3 -DEI_SENSOR_AQ_STREAM=FILE -DEIDSP_QUANTIZE_FILTERBANK=0 -DEI_CLASSIFIER_SLICES_PER_MODEL_WINDOW=4 -DEI_DSP_IMAGE_BUFFER_STATIC_SIZE=128 -DEI_CAMERA_FRAME_BUFFER_SDRAM -DEI_CLASSIFIER_ALLOCATION_STATIC -w
-set INCLUDE=-I.\\src\\ -I.\\src\\model-parameters\\ -I.\\src\\ingestion-sdk-c\\ -I.\\src\\ingestion-sdk-c\\inc\\signing\\ -I.\\src\\ingestion-sdk-platform\\portenta-h7\\ -I.\\src\\sensors\\ -I.\\src\\sensors\\ -I.\\src\\QCBOR\\inc\\ -I.\\src\\QCBOR\\src\\ -I.\\src\\mbedtls_hmac_sha256_sw\\ -I.\\src\\edge-impulse-sdk\\ -I.\\src\\firmware-sdk\\
+set DEFINE=-DARDUINOSTL_M_H -DMBED_HEAP_STATS_ENABLED=1 -DMBED_STACK_STATS_ENABLED=1 -O3 -DEIDSP_QUANTIZE_FILTERBANK=0 -DEI_CLASSIFIER_SLICES_PER_MODEL_WINDOW=4 -DEI_DSP_IMAGE_BUFFER_STATIC_SIZE=128 -DEI_CAMERA_FRAME_BUFFER_SDRAM -DEI_CLASSIFIER_ALLOCATION_STATIC -w
+set INCLUDE=-I.\\src\\ -I.\\src\\model-parameters\\ -I.\\src\\ingestion-sdk-c\\ -I.\\src\\ingestion-sdk-c\\inc\\signing\\ -I.\\src\\ingestion-sdk-platform\\portenta-h7\\ -I.\\src\\sensors\\ -I.\\src\\sensors\\ -I.\\src\\mbedtls_hmac_sha256_sw\\ -I.\\src\\edge-impulse-sdk\\ -I.\\src\\firmware-sdk\\
 
 rem CLI v0.14 updates the name of this to --build-property
 set BUILD_PROPERTIES_FLAG=--build-property

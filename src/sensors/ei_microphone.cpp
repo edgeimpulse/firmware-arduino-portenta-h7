@@ -25,7 +25,7 @@
 #include <PDM.h>
 #include "ei_config_types.h"
 #include "sensor_aq_mbedtls_hs256.h"
-#include "sensor_aq_none.h"
+#include "firmware-sdk/sensor-aq/sensor_aq.h"
 #include "edge-impulse-sdk/CMSIS/DSP/Include/arm_math.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
 #include "ei_device_portenta.h"
